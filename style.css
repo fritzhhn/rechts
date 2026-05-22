@@ -991,12 +991,15 @@ body:has(.archiveOverlay.open) .topHeaderBar {
 
 .maplibregl-popup {
   border-radius: var(--map-ui-radius);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
-/* MapLibre popup – matches map UI colors */
+/* MapLibre popup – matches map UI colors (no transform on content — keeps text sharp) */
 .maplibregl-popup-content {
-  font: inherit;
-  font-size: 13px;
-  line-height: 1.35;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
   color: #000;
   width: min(320px, calc(100vw - 48px - env(safe-area-inset-left, 0) - env(safe-area-inset-right, 0)));
   max-width: min(320px, calc(100vw - 48px - env(safe-area-inset-left, 0) - env(safe-area-inset-right, 0)));
@@ -1006,8 +1009,9 @@ body:has(.archiveOverlay.open) .topHeaderBar {
   border: none;
   box-shadow: var(--map-ui-shadow);
   position: relative;
-  left: 50%;
-  transform: translateX(-50%);
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   /* Keep long unbroken text inside popup */
   overflow-wrap: break-word;
   word-wrap: break-word;
@@ -1022,13 +1026,14 @@ body:has(.archiveOverlay.open) .topHeaderBar {
 
 .maplibregl-popup-content h3 {
   margin: 0 0 6px;
-  font-size: 14px;
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .maplibregl-popup-content p {
   margin: 0;
-  font-size: 13px;
-  line-height: 1.35;
+  font-size: 14px;
+  line-height: 1.5;
   word-wrap: break-word;
   overflow-wrap: break-word;
 }
@@ -1036,6 +1041,9 @@ body:has(.archiveOverlay.open) .topHeaderBar {
 .markerPopupBody,
 .addNotePopupForm {
   --popup-media-width: 300px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1141,7 +1149,7 @@ body.imageLightboxOpen {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   color: rgba(0, 0, 0, 0.55);
   background: rgba(0, 0, 0, 0.06);
@@ -1221,12 +1229,12 @@ body.imageLightboxOpen {
   width: 100%;
   max-width: none;
   box-sizing: border-box;
-  font-size: 9px;
-  line-height: 1.2;
+  font-size: 12px;
+  line-height: 1.4;
   color: #000;
   font-family: inherit;
   font-style: italic;
-  font-weight: 400;
+  font-weight: 500;
   text-align: center;
 }
 
@@ -1236,8 +1244,9 @@ body.imageLightboxOpen {
   width: 100%;
   max-width: none;
   box-sizing: border-box;
-  font-size: 13px;
-  line-height: 1.35;
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: 400;
   text-align: center;
   border-bottom: none;
 }
@@ -1304,9 +1313,9 @@ body.imageLightboxOpen {
   background: var(--map-ui-btn-bg);
   color: #000;
   font: inherit;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.3;
   padding: 4px 6px;
   cursor: var(--cursor-pointer);
   border-radius: 0;
@@ -1357,7 +1366,7 @@ body.imageLightboxOpen {
   background: transparent;
   box-sizing: border-box;
   font: inherit;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   color: rgba(0, 0, 0, 0.65);
   text-decoration: underline;
@@ -1385,7 +1394,7 @@ body.imageLightboxOpen {
   min-height: 0;
   margin: 6px auto 0;
   padding: 6px 10px;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .addNoteCategoryBar,
@@ -1416,9 +1425,9 @@ body.imageLightboxOpen {
   max-width: calc(100% - 20px);
   margin: 4px auto 0;
   padding: 0;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
-  line-height: 1.3;
+  line-height: 1.35;
   text-align: center;
   color: #000;
 }
@@ -1449,19 +1458,19 @@ body.imageLightboxOpen {
   margin: 4px auto 8px;
   padding: 0;
   box-sizing: border-box;
-  font-size: 11px;
-  color: #0b1020;
-  opacity: 0.85;
-  line-height: 1.35;
+  font-size: 12px;
+  color: #000;
+  opacity: 1;
+  line-height: 1.45;
   text-align: center;
   align-self: center;
 }
 
 .addNoteConsentHint {
-  font-size: 11px;
-  color: #0b1020;
-  opacity: 0.85;
-  line-height: 1.35;
+  font-size: 12px;
+  color: #000;
+  opacity: 1;
+  line-height: 1.45;
 }
 
 .addNoteConsentHint a {
@@ -1481,8 +1490,8 @@ body.imageLightboxOpen {
   border: none;
   border-radius: 0;
   font: inherit;
-  font-size: 13px;
-  line-height: 1.35;
+  font-size: 14px;
+  line-height: 1.5;
   text-align: left;
   color: #000;
   background: transparent;
@@ -1494,9 +1503,9 @@ body.imageLightboxOpen {
 
 .addNotePopupForm textarea::placeholder {
   font: inherit;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.3;
   color: rgba(0, 0, 0, 0.45);
   opacity: 1;
 }
@@ -1507,9 +1516,9 @@ body.imageLightboxOpen {
   width: fit-content;
   max-width: 100%;
   font: inherit;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.35;
   text-align: center;
   color: #000;
   background: var(--map-ui-btn-bg);
@@ -1537,7 +1546,7 @@ body.imageLightboxOpen {
   display: block;
   width: 100%;
   box-sizing: border-box;
-  font-size: 11px;
+  font-size: 12px;
   padding: 6px 12px;
   min-width: 0;
 }

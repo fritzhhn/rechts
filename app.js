@@ -149,12 +149,20 @@ let leipzigMaskGeoJson = null;
 /** @type {number[][]|null} Leipzig city ring [lng, lat][] for hit-testing */
 let leipzigCityRing = null;
 
-/** Equal padding around Leipzig city polygon for pan/zoom limits (degrees). */
-const LEIPZIG_VIEW_PADDING = { lng: 0.14, lat: 0.13 };
+/** Padding around Leipzig for pan limits (degrees); larger = can move further from the city. */
+const LEIPZIG_VIEW_PADDING = { lng: 0.45, lat: 0.4 };
+
+/** Screen inset when fitting Leipzig for max zoom-out (full city + a little margin). */
+const LEIPZIG_FIT_PADDING_PX = 56;
 
 const LEIPZIG_VIEW_BOUNDS_FALLBACK = /** @type {[[number, number], [number, number]]} */ ([
-  [11.95, 51.05],
-  [12.75, 51.58],
+  [11.6, 50.75],
+  [13.1, 51.9],
+]);
+
+const LEIPZIG_CITY_BOUNDS_FALLBACK = /** @type {[[number, number], [number, number]]} */ ([
+  [12.22, 51.17],
+  [12.58, 51.46],
 ]);
 
 /** List-only archive + slide-in detail on narrow or short viewports. */
@@ -183,6 +191,47 @@ function getLeipzigViewCenter(bounds = getLeipzigViewBounds()) {
   return [(bounds[0][0] + bounds[1][0]) / 2, (bounds[0][1] + bounds[1][1]) / 2];
 }
 
+/** Tight bbox of Leipzig city (no pan padding) — used for max zoom-out. */
+function getLeipzigCityBounds() {
+  const ring = leipzigCityRing;
+  if (!ring?.length) return LEIPZIG_CITY_BOUNDS_FALLBACK;
+  let minLng = Infinity;
+  let maxLng = -Infinity;
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+  for (const [lng, lat] of ring) {
+    if (lng < minLng) minLng = lng;
+    if (lng > maxLng) maxLng = lng;
+    if (lat < minLat) minLat = lat;
+    if (lat > maxLat) maxLat = lat;
+  }
+  return /** @type {[[number, number], [number, number]]} */ ([
+    [minLng, minLat],
+    [maxLng, maxLat],
+  ]);
+}
+
+/**
+ * Set minZoom so the widest zoom-out shows all of Leipzig (+ padding) for this viewport.
+ * Pan limits (maxBounds) stay wide; only zoom is capped.
+ */
+function syncMinZoomToFitLeipzig() {
+  if (!map || typeof map.fitBounds !== "function") return;
+  const bounds = getLeipzigCityBounds();
+  const center = map.getCenter();
+  const zoom = map.getZoom();
+  const bearing = map.getBearing();
+  map.fitBounds(bounds, {
+    padding: LEIPZIG_FIT_PADDING_PX,
+    duration: 0,
+    maxZoom: typeof map.getMaxZoom === "function" ? map.getMaxZoom() : 18,
+  });
+  const minZoom = map.getZoom();
+  map.jumpTo({ center, zoom, bearing, duration: 0 });
+  map.setMinZoom(minZoom);
+  if (zoom < minZoom) map.setZoom(minZoom);
+}
+
 /** Outside-city mask: muted grey-pink from title rgb(250, 52, 147), low opacity. */
 function getLeipzigMaskFillColor() {
   return "rgba(196, 168, 178, 0.42)";
@@ -191,7 +240,7 @@ function getLeipzigMaskFillColor() {
 function buildOutsideLeipzigMaskGeoJson(ring) {
   const viewBounds = getLeipzigViewBounds();
   const [[minLng, minLat], [maxLng, maxLat]] = viewBounds;
-  const outerMargin = { lng: 0.35, lat: 0.3 };
+  const outerMargin = { lng: 0.4, lat: 0.35 };
   const outer = [
     [minLng - outerMargin.lng, minLat - outerMargin.lat],
     [maxLng + outerMargin.lng, minLat - outerMargin.lat],
@@ -1877,8 +1926,7 @@ function openAddNotePopup(lngLat) {
     .setLngLat(center)
     .setDOMContent(content)
     .addTo(map);
-  const flyCenter = getCenterLngLatWithMarkerBelow(center, MARKER_OFFSET_BELOW_CENTER);
-  map.flyTo({ center: flyCenter, zoom: map.getZoom() });
+  flyMapToPlacePin(center);
   addNotePopup.on("close", () => {
     closeAddNotePopup();
   });
@@ -1969,6 +2017,65 @@ function submitNote(noteText, buttonEl, category = DEFAULT_NOTE_CATEGORY, tags =
 
 const GAP_ABOVE_MARKER = 80; // gap between popup tip and top of marker (popup above marker)
 const MARKER_OFFSET_BELOW_CENTER = 200; // when centering on marker, place marker this many px below visual center
+/** At max zoom-out, ease in slightly so the centering pan fits inside maxBounds. */
+const CAMERA_PLACEMENT_ZOOM_HEADROOM = 0.5;
+const CAMERA_PLACEMENT_DURATION_MS = 480;
+
+/** @param {{ lng: number, lat: number } | [number, number] | maplibregl.LngLat} lngLat */
+function normalizeLngLatInput(lngLat) {
+  if (Array.isArray(lngLat)) return { lng: lngLat[0], lat: lngLat[1] };
+  if (lngLat && typeof lngLat.lng === "number" && typeof lngLat.lat === "number") {
+    return { lng: lngLat.lng, lat: lngLat.lat };
+  }
+  return null;
+}
+
+function clampCenterToMaxBounds(center) {
+  if (!map || !center) return center;
+  const bounds = map.getMaxBounds();
+  if (!bounds) return center;
+  const sw = bounds.getSouthWest();
+  const ne = bounds.getNorthEast();
+  return {
+    lng: Math.min(Math.max(center.lng, sw.lng), ne.lng),
+    lat: Math.min(Math.max(center.lat, sw.lat), ne.lat),
+  };
+}
+
+/** Zoom for pin placement fly: never zoom out; at min zoom allow a little zoom-in headroom. */
+function resolvePlacementFlyZoom(requestedZoom) {
+  const minZ = map.getMinZoom();
+  const current = map.getZoom();
+  const maxZ = map.getMaxZoom();
+  if (typeof requestedZoom === "number") {
+    return Math.min(maxZ, Math.max(minZ, requestedZoom));
+  }
+  if (current <= minZ + 0.08) {
+    return Math.min(maxZ, minZ + CAMERA_PLACEMENT_ZOOM_HEADROOM);
+  }
+  return Math.max(current, minZ);
+}
+
+/**
+ * Pan/zoom to place a pin in the lower part of the view (add-note / marker popups).
+ * @param {{ lng: number, lat: number } | [number, number] | maplibregl.LngLat} lngLat
+ * @param {{ offsetPx?: number, zoom?: number, duration?: number }} [options]
+ */
+function flyMapToPlacePin(lngLat, options = {}) {
+  if (!map) return;
+  const pt = normalizeLngLatInput(lngLat);
+  if (!pt) return;
+  const offsetPx = options.offsetPx ?? MARKER_OFFSET_BELOW_CENTER;
+  const targetZoom = resolvePlacementFlyZoom(options.zoom);
+  let flyCenter = getCenterLngLatWithMarkerBelowAtZoom(pt, offsetPx, targetZoom);
+  flyCenter = clampCenterToMaxBounds(flyCenter);
+  map.easeTo({
+    center: [flyCenter.lng, flyCenter.lat],
+    zoom: targetZoom,
+    duration: options.duration ?? CAMERA_PLACEMENT_DURATION_MS,
+    essential: true,
+  });
+}
 
 /** Return center lngLat so that the given point appears offsetPx pixels below the visual center after flyTo. */
 function getCenterLngLatWithMarkerBelow(lngLat, offsetPx) {
@@ -2012,15 +2119,9 @@ function scheduleCenterPopupInMapView(popup) {
   });
 }
 
-/** Pan toward marker at current zoom (same gentle move as opening the add-note popup). */
+/** Pan toward marker (same gentle move as opening the add-note popup). */
 function flyMapToMarker(lngLat, zoom) {
-  if (!map || !lngLat) return;
-  const flyCenter = getCenterLngLatWithMarkerBelow(lngLat, MARKER_OFFSET_BELOW_CENTER);
-  map.flyTo({
-    center: flyCenter,
-    zoom: typeof zoom === "number" ? zoom : map.getZoom(),
-    duration: 450,
-  });
+  flyMapToPlacePin(lngLat, { zoom, duration: CAMERA_PLACEMENT_DURATION_MS });
 }
 
 function bindPopupRecenterOnImageLoad(popup, root) {
@@ -2171,7 +2272,6 @@ function initMap() {
     style: MAP_STYLE_URL,
     center: leipzigViewCenter,
     zoom: 11.2,
-    minZoom: 9.6,
     maxZoom: 18,
     maxBounds: leipzigViewBounds,
     pitch: 0,
@@ -2216,6 +2316,8 @@ function initMap() {
     applyAppCursor();
     applyMapThemeWithRetries();
     restoreMarkersOnMap();
+    map.resize();
+    syncMinZoomToFitLeipzig();
   });
   map.on("pitch", lockMapPitch);
 
@@ -2446,6 +2548,7 @@ function initMap() {
       return;
     }
     map.resize();
+    syncMinZoomToFitLeipzig();
   };
   window.addEventListener("resize", onResize);
   window.addEventListener("orientationchange", () => {
