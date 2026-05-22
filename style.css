@@ -1,0 +1,1742 @@
+/* Roboto — self-hosted in /fonts (Apache 2.0, see fonts/README.md) */
+@font-face {
+  font-family: "Roboto";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/Roboto-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Roboto";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/Roboto-Medium.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Roboto";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/Roboto-Bold.woff2") format("woff2");
+}
+
+:root {
+  /* pointer.svg — top-left at cursor tip; JS replaces with sized data URL when loaded */
+  --cursor-pointer: url("icons/pointer.svg") 0 0, auto;
+  --font-sans: "Roboto", system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+  cursor: var(--cursor-pointer);
+}
+
+a,
+a:hover,
+a:focus,
+a:active,
+a:visited {
+  cursor: var(--cursor-pointer) !important;
+}
+
+html,
+body {
+  height: 100%;
+  /* iOS Safari: avoid 100vh including address bar; allow safe area */
+  min-height: 100%;
+  min-height: -webkit-fill-available;
+}
+
+body {
+  margin: 0;
+  overflow-x: hidden;
+  font-family: var(--font-sans);
+  color: #000;
+  background: rgb(198, 228, 153);
+}
+
+/* Queering the Map style: full-screen wrapper (fixed), map absolute inside so only map content zooms */
+.map-wrapper {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  height: -webkit-fill-available;
+  background: rgb(198, 228, 153);
+  touch-action: none; /* so only the map zooms, not the page */
+}
+
+.map {
+  position: absolute;
+  top: var(--map-edge-gap);
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  z-index: 0; /* below map UI controls (z-index: 1000) when inside .map-wrapper */
+  /* MDN: disable browser gestures so only the map zooms */
+  touch-action: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.map.map--themed {
+  opacity: 1;
+}
+
+/* MapLibre sets touch-action on canvas via classes; we enforce none so browser never zooms page on map. */
+.maplibregl-canvas-container,
+.maplibregl-canvas {
+  touch-action: none;
+  cursor: var(--cursor-pointer) !important;
+}
+
+.maplibregl-canvas-container.maplibregl-interactive:active .maplibregl-canvas,
+.maplibregl-dragging .maplibregl-canvas {
+  cursor: var(--cursor-pointer) !important;
+}
+
+/* Vector style handles colors directly, no filter needed */
+
+/* MapLibre popup styling */
+/* When popup opens below marker (anchor-top), pull it up so it sits right under the pin */
+.maplibregl-popup-anchor-top,
+.maplibregl-popup-anchor-top-left,
+.maplibregl-popup-anchor-top-right {
+  margin-top: -60px;
+}
+/* Popup tip (arrow) – triangle via border trick */
+.maplibregl-popup-tip {
+  width: 0;
+  height: 0;
+  border: 10px solid transparent;
+}
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
+.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip {
+  border-top-color: var(--map-ui-btn-bg) !important;
+}
+.maplibregl-popup-anchor-top .maplibregl-popup-tip,
+.maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
+.maplibregl-popup-anchor-top-right .maplibregl-popup-tip {
+  border-bottom-color: var(--map-ui-btn-bg) !important;
+}
+
+.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+  border-right-color: var(--map-ui-btn-bg) !important;
+}
+
+.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+  border-left-color: var(--map-ui-btn-bg) !important;
+}
+
+.maplibregl-popup-close-button {
+  display: none !important;
+}
+
+/* Saved markers: black by default, green on hover layer */
+.maplibregl-marker [data-marker="true"] [data-marker-layer="default"] .pin1-st0,
+.maplibregl-marker [data-marker="true"] [data-marker-layer="default"] .pin4-cls-1,
+.maplibregl-marker [data-marker="true"] [data-marker-layer="default"] svg path,
+.maplibregl-marker [data-marker="true"] [data-marker-layer="default"] svg polygon,
+.maplibregl-marker [data-marker="true"] [data-marker-layer="default"] svg line,
+.maplibregl-marker [data-marker="true"] [data-marker-layer="default"] svg circle {
+  fill: #000 !important;
+  stroke: none !important;
+}
+.maplibregl-marker [data-marker="true"] [data-marker-layer="hover"] .pin2-st0,
+.maplibregl-marker [data-marker="true"] [data-marker-layer="hover"] .pin4-cls-1,
+.maplibregl-marker [data-marker="true"] [data-marker-layer="hover"] svg path,
+.maplibregl-marker [data-marker="true"] [data-marker-layer="hover"] svg polygon,
+.maplibregl-marker [data-marker="true"] [data-marker-layer="hover"] svg line,
+.maplibregl-marker [data-marker="true"] [data-marker-layer="hover"] svg circle {
+  fill: var(--marker-pin-color) !important;
+  stroke: none !important;
+}
+/* Preview placement pin: black outline only */
+.maplibregl-marker [data-preview-marker="true"] .pin3-st0,
+.maplibregl-marker [data-preview-marker="true"] .pin4-cls-1,
+.maplibregl-marker [data-preview-marker="true"] svg path,
+.maplibregl-marker [data-preview-marker="true"] svg polygon,
+.maplibregl-marker [data-preview-marker="true"] svg line,
+.maplibregl-marker [data-preview-marker="true"] svg circle {
+  fill: none !important;
+  stroke: #000 !important;
+  stroke-width: 48px;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+
+/* Icons from icons/ (24×24): mask + background-color so we can theme/hover color */
+.iconMask {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  background-color: #000;
+}
+.iconHamburger { mask-image: url("icons/hamburger.svg"); -webkit-mask-image: url("icons/hamburger.svg"); }
+.iconX { mask-image: url("icons/x.svg"); -webkit-mask-image: url("icons/x.svg"); }
+.iconPlus { mask-image: url("icons/plus.svg"); -webkit-mask-image: url("icons/plus.svg"); }
+.iconMinus { mask-image: url("icons/minus.svg"); -webkit-mask-image: url("icons/minus.svg"); }
+.iconFolder { mask-image: url("icons/folder.svg"); -webkit-mask-image: url("icons/folder.svg"); }
+
+/* Map UI controls */
+:root {
+  --map-ui-btn-size: 48px;
+  /* Narrow side gutters inside menu/archive (map buttons stay 48px) */
+  --panel-bar-size: var(--map-ui-btn-size);
+  /* Gap between map canvas edge and fixed UI controls (top/bottom) */
+  --map-edge-gap: var(--map-ui-btn-size);
+  --map-ui-btn-gap: 8px;
+  --map-ui-border-width: 1px;
+  --map-ui-radius: 0;
+  --map-ui-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.08);
+  --map-ui-btn-bg: rgb(198, 228, 153);
+  --map-ui-btn-border: #000;
+  --marker-pin-color: rgb(155, 213, 69);
+  --brand-pink: rgb(250, 52, 147);
+  --map-ui-btn-hover-bg: #000;
+  --map-ui-btn-hover-fg: rgb(198, 228, 153);
+  --z-map-panel: 1002;
+  --z-map-header: 1003;
+  --z-map-chrome: 1005;
+  --panel-top-line: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.topHeaderBar {
+  position: fixed;
+  top: env(safe-area-inset-top, 0);
+  left: env(safe-area-inset-left, 0);
+  right: env(safe-area-inset-right, 0);
+  height: var(--map-ui-btn-size);
+  background: var(--map-ui-btn-bg);
+  box-shadow: var(--map-ui-shadow);
+  z-index: var(--z-map-header);
+  pointer-events: none;
+}
+
+/* No header drop shadow over open panels — separator is the panel top line */
+body:has(.menuOverlay.open) .topHeaderBar,
+body:has(.archiveOverlay.open) .topHeaderBar {
+  box-shadow: none;
+}
+
+.leftControls {
+  position: fixed;
+  top: 0;
+  left: 0;
+  top: env(safe-area-inset-top, 0);
+  left: env(safe-area-inset-left, 0);
+  z-index: var(--z-map-chrome);
+  display: flex;
+  flex-direction: column;
+  gap: var(--map-ui-btn-gap);
+}
+
+.leftControlsTopRow {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0;
+}
+
+.bottomRightControls {
+  position: fixed;
+  bottom: env(safe-area-inset-bottom, 0);
+  right: env(safe-area-inset-right, 0);
+  z-index: 1000;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  border-radius: var(--map-ui-radius);
+  overflow: hidden;
+  box-shadow: var(--map-ui-shadow);
+}
+
+.leftControls .langBtn {
+  margin-top: var(--map-ui-btn-gap);
+}
+
+.mapUiBtn {
+  border: none;
+  background: var(--map-ui-btn-bg);
+  color: #000;
+  padding: 0;
+  cursor: var(--cursor-pointer);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--map-ui-btn-size);
+  height: var(--map-ui-btn-size);
+  min-width: var(--map-ui-btn-size);
+  min-height: var(--map-ui-btn-size);
+  box-sizing: border-box;
+  box-shadow: var(--map-ui-shadow);
+  flex-shrink: 0;
+  font: inherit;
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+  border-radius: var(--map-ui-radius);
+}
+
+.hamburgerBtn.menuOpen,
+.archiveBtn.archiveOpen {
+  background: var(--map-ui-btn-hover-bg);
+  color: var(--map-ui-btn-hover-fg);
+}
+
+.hamburgerBtn.menuOpen .iconMask,
+.archiveBtn.archiveOpen .iconMask {
+  background-color: var(--map-ui-btn-hover-fg);
+}
+
+@media (hover: hover) {
+  .mapUiBtn:hover {
+    background: var(--map-ui-btn-hover-bg);
+    color: var(--map-ui-btn-hover-fg);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14), 0 2px 4px rgba(0, 0, 0, 0.08);
+  }
+
+  .mapUiBtn:hover .iconMask {
+    background-color: var(--map-ui-btn-hover-fg);
+  }
+}
+
+.bottomRightControls .mapUiBtn {
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.bottomRightControls:hover {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14), 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.hamburgerBtn,
+.archiveBtn {
+  width: var(--map-ui-btn-size);
+  min-width: var(--map-ui-btn-size);
+  max-width: var(--map-ui-btn-size);
+  height: var(--map-ui-btn-size);
+  min-height: var(--map-ui-btn-size);
+  max-height: var(--map-ui-btn-size);
+  flex-shrink: 0;
+  box-shadow: none;
+}
+
+.hamburgerBtn {
+  position: relative;
+}
+
+@media (hover: hover) {
+  .hamburgerBtn:hover,
+  .archiveBtn:hover {
+    box-shadow: none;
+  }
+}
+
+.langBtn {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+
+.hamburgerIcon {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  display: inline-block;
+}
+.hamburgerIcon .iconMask {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 24px;
+  height: 24px;
+  transition: opacity 0.2s ease;
+}
+.hamburgerIcon .iconHamburger {
+  opacity: 1;
+}
+.hamburgerIcon .iconX {
+  opacity: 0;
+}
+.hamburgerBtn.menuOpen .hamburgerIcon .iconHamburger {
+  opacity: 0;
+}
+.hamburgerBtn.menuOpen .hamburgerIcon .iconX {
+  opacity: 1;
+}
+
+.archiveBtn .iconMask {
+  width: 24px;
+  height: 24px;
+}
+
+@media (hover: hover) {
+  .hamburgerBtn:hover .iconMask,
+  .archiveBtn:hover .iconMask {
+    background-color: var(--map-ui-btn-hover-fg);
+  }
+}
+
+.langBtn.mapUiBtn--wide {
+  width: 96px;
+  min-width: 96px;
+  max-width: 96px;
+}
+
+.langBtn.mapUiBtn--tall {
+  height: 96px;
+  min-height: 96px;
+  max-height: 96px;
+}
+
+.langBtn {
+  color: #000;
+  text-decoration: none;
+}
+
+.langLogo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 75px;
+  height: 75px;
+  border-radius: 50%;
+  background: rgb(255, 187, 221);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.langLogo img {
+  display: block;
+  width: 72%;
+  height: auto;
+  max-height: 88%;
+  object-fit: contain;
+}
+
+.zoomOutBtn .iconMask,
+.zoomInBtn .iconMask {
+  width: 24px;
+  height: 24px;
+}
+
+.mapUiBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Side panels – open under top control row; fill to bottom and right */
+.menuOverlay,
+.archiveOverlay {
+  --menu-btn-size: var(--map-ui-btn-size);
+  --menu-top: calc(env(safe-area-inset-top, 0) + var(--map-ui-btn-size));
+  --panel-divider: 1px solid rgba(0, 0, 0, 0.12);
+  position: fixed;
+  top: var(--menu-top);
+  left: env(safe-area-inset-left, 0);
+  right: env(safe-area-inset-right, 0);
+  bottom: env(safe-area-inset-bottom, 0);
+  width: auto;
+  height: auto;
+  max-width: none;
+  min-width: 0;
+  z-index: var(--z-map-panel);
+  display: none;
+  grid-template-rows: minmax(0, 1fr);
+  background: var(--map-ui-btn-bg);
+  border: none;
+  box-sizing: border-box;
+  box-shadow: none;
+  overflow: hidden;
+  border-radius: 0;
+}
+
+.menuOverlay,
+.archiveOverlay {
+  grid-template-columns:
+    minmax(var(--panel-bar-size), var(--panel-bar-size))
+    minmax(0, 1fr)
+    minmax(var(--panel-bar-size), var(--panel-bar-size));
+}
+
+.menuOverlay.open,
+.archiveOverlay.open {
+  display: grid;
+  border-top: var(--panel-top-line);
+}
+
+.panelVerticalBar,
+.menuOverlayVerticalBar,
+.archiveOverlayVerticalBar {
+  grid-row: 1;
+  width: var(--panel-bar-size);
+  min-width: var(--panel-bar-size);
+  max-width: var(--panel-bar-size);
+  background: var(--map-ui-btn-bg);
+  border: none;
+  box-sizing: border-box;
+  box-shadow: none;
+}
+
+.menuOverlay > .menuOverlayVerticalBar:first-of-type,
+.archiveOverlay > .archiveOverlayVerticalBar:first-of-type {
+  grid-column: 1;
+}
+
+.menuOverlay > .menuOverlayVerticalBar:last-of-type,
+.archiveOverlay > .archiveOverlayVerticalBar:last-of-type {
+  grid-column: 3;
+}
+
+.menuOverlayContent,
+.archiveOverlayContent {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--map-ui-btn-bg);
+  box-sizing: border-box;
+  box-shadow: none;
+}
+
+.archiveOverlayContent {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+}
+
+.archivePane--list {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.archiveFiltersStack {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+/* Shared filter/nav pill row (archive categories, tags, menu sections) */
+.archiveFilterBar,
+.archiveTagBar,
+.menuFilterBar {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px clamp(12px, 4vw, 48px);
+  scrollbar-width: none;
+}
+
+.menuFilterBar {
+  max-height: 72px;
+  overflow-y: auto;
+}
+
+.archiveFilterBar,
+.archiveTagBar {
+  max-height: none;
+  overflow-y: visible;
+}
+
+.archiveFilterBar {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.archiveTagBar {
+  border-bottom: none;
+}
+
+.menuFilterBar {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.archiveFilterBar::-webkit-scrollbar,
+.archiveTagBar::-webkit-scrollbar,
+.menuFilterBar::-webkit-scrollbar {
+  display: none;
+}
+
+.archiveFilterBtn,
+.archiveTagBtn,
+.menuFilterBtn {
+  border: none;
+  background: var(--map-ui-btn-bg);
+  color: #000;
+  font: inherit;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.2;
+  padding: 4px 6px;
+  cursor: var(--cursor-pointer);
+  border-radius: 0;
+  box-shadow: none;
+  text-align: center;
+  max-width: 100%;
+}
+
+.archiveFilterBtn--active,
+.archiveTagBtn--active,
+.menuFilterBtn--active {
+  background: var(--map-ui-btn-hover-bg);
+  color: var(--map-ui-btn-hover-fg);
+}
+
+@media (hover: hover) {
+  .archiveFilterBtn:hover,
+  .archiveTagBtn:hover,
+  .menuFilterBtn:hover {
+    background: var(--map-ui-btn-hover-bg);
+    color: var(--map-ui-btn-hover-fg);
+  }
+}
+
+.archivePane--detail {
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.archivePane--detail .archiveDetail {
+  flex: 1;
+  min-height: 0;
+}
+
+.archiveDetailBack {
+  display: none;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  margin: 0;
+  padding: 8px 12px;
+  border: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+  background: var(--map-ui-btn-bg);
+  color: #000;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: var(--cursor-pointer);
+  box-sizing: border-box;
+}
+
+.archiveDetailBack:hover {
+  background: var(--map-ui-btn-hover-bg);
+  color: var(--map-ui-btn-hover-fg);
+}
+
+.archiveOverlay--compact .archivePane--detail .archiveDetail {
+  flex: 1;
+  min-height: 0;
+}
+
+.menuOverlayScroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 16px;
+  box-sizing: border-box;
+}
+
+.menuOverlayScroll::-webkit-scrollbar {
+  display: none;
+}
+
+.archiveList {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.archiveList::-webkit-scrollbar {
+  display: none;
+}
+
+.archiveEntry {
+  display: grid;
+  grid-template-columns: 44px 1.15fr 0.95fr 0.9fr 1fr;
+  column-gap: 14px;
+  align-items: center;
+  justify-items: center;
+  text-align: center;
+  width: 100%;
+  padding: 4px clamp(32px, 8vw, 120px);
+  border: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  background: var(--map-ui-btn-bg);
+  color: #000;
+  font: inherit;
+  cursor: var(--cursor-pointer);
+  box-sizing: border-box;
+}
+
+.archiveEntry--selected {
+  background: var(--map-ui-btn-hover-bg);
+  color: var(--map-ui-btn-hover-fg);
+}
+
+@media (hover: hover) {
+  .archiveEntry:hover {
+    background: var(--map-ui-btn-hover-bg);
+    color: var(--map-ui-btn-hover-fg);
+  }
+}
+
+.archiveEntryImage {
+  width: 40px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: var(--map-ui-radius);
+  display: block;
+}
+
+.archiveEntryCategory,
+.archiveEntryWhere,
+.archiveEntryWhen,
+.archiveEntryWhat {
+  font-size: 11px;
+  line-height: 1.25;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  min-width: 0;
+  width: 100%;
+}
+
+.archiveEntryWhen {
+  font-style: italic;
+  color: rgba(0, 0, 0, 0.55);
+}
+
+.archiveEntry:hover .archiveEntryWhen,
+.archiveEntry--selected .archiveEntryWhen {
+  color: inherit;
+}
+
+.archiveListEmpty,
+.archiveDetailEmpty {
+  padding: 16px 12px;
+  text-align: center;
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.archiveDetail {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: stretch;
+  box-sizing: border-box;
+  padding-bottom: 20px;
+}
+
+.archiveDetailEmpty {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.archiveDetailMeta {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  align-self: stretch;
+  overflow-y: auto;
+  scrollbar-width: none;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.archiveDetailMeta::-webkit-scrollbar {
+  display: none;
+}
+
+.archiveDetailImageWrap {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 16px 20px;
+  box-sizing: border-box;
+}
+
+.archiveDetailImageWrap::after {
+  content: "";
+  position: absolute;
+  top: 12px;
+  right: 0;
+  bottom: 20px;
+  width: 1px;
+  background: rgba(0, 0, 0, 0.08);
+  pointer-events: none;
+}
+
+.archiveDetailImageViewport {
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+  flex: 1;
+  align-self: stretch;
+  touch-action: none;
+  background: transparent;
+}
+
+.archiveDetailImageViewport .archiveDetailImage {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  object-fit: contain;
+  object-position: center;
+  transform-origin: center center;
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+
+.archiveDetailRow {
+  width: 100%;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #000;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  padding: 0;
+  margin: 0;
+  border: none;
+  box-sizing: border-box;
+}
+
+.archiveDetailRow strong {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+  color: rgba(0, 0, 0, 0.55);
+}
+
+.archiveDetailRow--when {
+  font-style: italic;
+  color: rgba(0, 0, 0, 0.65);
+}
+
+.menuContent {
+  margin: 0 auto;
+  padding: 0 24px 24px;
+  width: 100%;
+  max-width: 640px;
+  color: #000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  min-height: 0;
+  text-align: center;
+}
+
+.menuContent h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 6px;
+  color: #000;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+/* Clear spacing between the 4 main segments – only 2nd/3rd/4th h2 (Impressum, Privacy, Terms); first h2 is About */
+.menuContent > h2:not(:first-of-type) {
+  margin-top: 2.25em;
+  padding-top: 0.25em;
+}
+
+.menuContent h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 16px 0 4px;
+  color: #000;
+}
+
+.menuContent h3:first-child {
+  margin-top: 0;
+}
+
+.menuContent ul {
+  margin: 0 0 4px;
+  padding-left: 0;
+  list-style-position: inside;
+  text-align: center;
+  width: 100%;
+}
+
+.menuContent li {
+  font-size: 14px;
+  line-height: 1.5;
+  margin-bottom: 2px;
+}
+
+.menuContent a {
+  color: #000;
+  text-decoration: underline;
+  word-break: break-all;
+}
+
+.menuContent p {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #000;
+  margin: 0 0 4px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.brandCenter {
+  position: fixed;
+  top: env(safe-area-inset-top, 0);
+  left: 50%;
+  right: auto;
+  height: var(--map-ui-btn-size);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  box-sizing: border-box;
+  pointer-events: none;
+  text-align: center;
+  z-index: var(--z-map-header);
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100vw - 120px - env(safe-area-inset-left, 0) - env(safe-area-inset-right, 0));
+}
+
+.brandCenter strong {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-size: clamp(11px, 2.8vw + 0.45rem, 32px);
+  line-height: 1.1;
+  font-weight: bold;
+  color: rgb(250, 52, 147);
+  white-space: nowrap;
+  transform: translateY(2px);
+  max-width: 100%;
+}
+
+.brandStrike {
+  position: relative;
+  display: inline-block;
+}
+
+.brandStrike::after {
+  content: "";
+  position: absolute;
+  left: -0.05em;
+  right: -0.05em;
+  top: 50%;
+  height: 0.14em;
+  min-height: 2px;
+  background: #000;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.maplibregl-popup {
+  border-radius: var(--map-ui-radius);
+}
+/* MapLibre popup – matches map UI colors */
+.maplibregl-popup-content {
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.35;
+  color: #000;
+  width: min(320px, calc(100vw - 48px - env(safe-area-inset-left, 0) - env(safe-area-inset-right, 0)));
+  max-width: min(320px, calc(100vw - 48px - env(safe-area-inset-left, 0) - env(safe-area-inset-right, 0)));
+  box-sizing: border-box;
+  border-radius: var(--map-ui-radius);
+  background: var(--map-ui-btn-bg);
+  border: none;
+  box-shadow: var(--map-ui-shadow);
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
+  /* Keep long unbroken text inside popup */
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+  min-width: 0;
+}
+
+.maplibregl-popup-content:has(.addNotePopupForm),
+.maplibregl-popup-content:has(.markerPopupBody) {
+  padding: 0;
+}
+
+.maplibregl-popup-content h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+
+.maplibregl-popup-content p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.35;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.markerPopupBody,
+.addNotePopupForm {
+  --popup-media-width: 300px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.inlineZoomViewport {
+  width: 100%;
+  overflow: hidden;
+  position: relative;
+  touch-action: none;
+  background: rgba(0, 0, 0, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+}
+
+.archiveDetailImageViewport.inlineZoomViewport {
+  background: transparent;
+}
+
+.archiveDetailImageViewport--tapFullscreen {
+  cursor: zoom-in;
+}
+
+/* Fullscreen archive image (mobile tap) */
+.imageLightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1010;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0)
+    env(safe-area-inset-left, 0);
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.92);
+  touch-action: manipulation;
+}
+
+.imageLightbox[hidden] {
+  display: none !important;
+}
+
+.imageLightboxImg {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  object-position: center;
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: auto;
+  cursor: var(--cursor-pointer);
+}
+
+body.imageLightboxOpen {
+  overflow: hidden;
+}
+
+.markerPopupImageViewport {
+  width: var(--popup-media-width);
+  max-width: calc(100% - 20px);
+  height: 220px;
+  min-height: 220px;
+  max-height: 220px;
+  margin: 10px auto 0;
+  flex-shrink: 0;
+  background: transparent;
+  align-self: center;
+  box-shadow: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  position: relative;
+}
+
+.addNotePopupForm .addNotePhotoPreviewViewport {
+  width: var(--popup-media-width);
+  max-width: calc(100% - 20px);
+  height: 220px;
+  min-height: 220px;
+  max-height: 220px;
+  margin: 10px auto 0;
+  flex-shrink: 0;
+  background: transparent;
+  align-self: center;
+  box-shadow: none;
+  border-bottom: none;
+  position: relative;
+}
+
+.addNotePopupForm .addNotePhotoPreviewViewport[hidden] {
+  display: none;
+}
+
+.addNotePhotoLoading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.06);
+  text-align: center;
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+.addNotePhotoLoading[hidden] {
+  display: none;
+}
+
+.addNotePhotoPreviewViewport.is-loading .addNotePhotoPreview {
+  visibility: hidden;
+}
+
+.addNotePhotoPreview[hidden] {
+  display: none;
+}
+
+.inlineZoomViewport.is-zoomed {
+  cursor: grab;
+}
+
+.inlineZoomViewport.is-dragging {
+  cursor: grabbing;
+}
+
+.markerPopupImageViewport .markerPopupImage {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  object-fit: cover;
+  object-position: center;
+  transform-origin: center center;
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+
+.addNotePopupForm .addNotePhotoPreviewViewport:not([hidden]) {
+  order: -1;
+}
+
+.addNotePopupForm .addNotePhotoPreviewViewport:not([hidden]) .addNotePhotoPreview {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  object-fit: cover;
+  object-position: center;
+}
+
+.inlineZoomViewport .addNotePhotoPreview {
+  display: block;
+  transform-origin: center center;
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+
+.markerPopupCopy,
+.addNotePopupForm .addNoteTextBlock {
+  width: var(--popup-media-width);
+  max-width: calc(100% - 20px);
+  margin: 0 auto;
+  padding: 10px 0 0;
+  box-sizing: border-box;
+  align-self: center;
+}
+
+.markerPopupCopy .markerPopupMeta {
+  margin: 0;
+  padding: 0 0 6px;
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+  font-size: 9px;
+  line-height: 1.2;
+  color: #000;
+  font-family: inherit;
+  font-style: italic;
+  font-weight: 400;
+  text-align: center;
+}
+
+.markerPopupCopy .markerPopupText {
+  margin: 0;
+  padding: 0 0 4px;
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+  font-size: 13px;
+  line-height: 1.35;
+  text-align: center;
+  border-bottom: none;
+}
+
+.addNotePopupForm .addNoteTextBlock {
+  padding-top: 10px;
+  padding-bottom: 4px;
+}
+
+.markerPopupDivider {
+  display: block;
+  flex-shrink: 0;
+  width: var(--popup-media-width);
+  max-width: calc(100% - 20px);
+  margin: 6px auto;
+  padding: 0;
+  border: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  height: 0;
+  box-sizing: border-box;
+  align-self: center;
+}
+
+.addNotePopupForm > .markerPopupDivider {
+  margin: 6px auto;
+}
+
+.markerPopupLabels .markerPopupDivider {
+  width: 100%;
+  max-width: none;
+  margin: 4px auto;
+}
+
+.markerPopupLabels,
+.addNotePopupForm .markerPopupLabels {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 0 auto;
+  margin-top: 0;
+  padding: 4px 0 8px;
+  width: var(--popup-media-width);
+  max-width: calc(100% - 20px);
+  box-sizing: border-box;
+}
+
+.addNotePopupForm .addNotePopupLabels {
+  padding-top: 2px;
+  padding-bottom: 6px;
+}
+
+.markerPopupCategoryRow,
+.markerPopupTagsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: center;
+  width: 100%;
+}
+
+.markerPopupTag {
+  border: none;
+  background: var(--map-ui-btn-bg);
+  color: #000;
+  font: inherit;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.2;
+  padding: 4px 6px;
+  cursor: var(--cursor-pointer);
+  border-radius: 0;
+  box-shadow: none;
+  text-align: center;
+}
+
+.markerPopupTag[aria-pressed="true"] {
+  background: var(--map-ui-btn-hover-bg);
+  color: var(--map-ui-btn-hover-fg);
+}
+
+@media (hover: hover) {
+  .markerPopupTag:hover,
+  .markerPopupTag:focus-visible {
+    background: var(--map-ui-btn-hover-bg);
+    color: var(--map-ui-btn-hover-fg);
+    outline: none;
+  }
+}
+
+.markerPopupTag:focus {
+  outline: none;
+}
+
+.addNotePopupForm .addNoteTextBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.addNotePopupForm .addNotePhotoRow {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  width: 100%;
+}
+
+.addNotePopupForm .addNotePhotoLabel {
+  width: var(--popup-media-width);
+  max-width: calc(100% - 20px);
+  margin: 0 auto;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 9px;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.65);
+  text-decoration: underline;
+  cursor: var(--cursor-pointer);
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.addNotePopupForm .addNotePhotoRow:has(.addNotePhotoPreviewViewport[hidden]) .addNotePhotoLabel {
+  position: relative;
+  height: auto;
+  min-height: 40px;
+  margin: 10px auto 0;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.addNotePopupForm .addNotePhotoRow:has(.addNotePhotoPreviewViewport:not([hidden])) .addNotePhotoLabel {
+  min-height: 0;
+  margin: 6px auto 0;
+  padding: 6px 10px;
+  font-size: 9px;
+}
+
+.addNoteCategoryBar,
+.addNoteTagsBar {
+  display: contents;
+}
+
+.addNotePhotoLabelText {
+  pointer-events: none;
+}
+
+.addNotePhotoInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.addNotePhotoError {
+  width: var(--popup-media-width);
+  max-width: calc(100% - 20px);
+  margin: 4px auto 0;
+  padding: 0;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: center;
+  color: #000;
+}
+
+.addNotePhotoError[hidden] {
+  display: none;
+}
+
+@media (hover: hover) {
+  .addNotePopupForm .addNotePhotoLabel:hover {
+    opacity: 0.85;
+  }
+}
+
+.mapUiBtn:focus {
+  outline: none;
+}
+
+.mapUiBtn:focus-visible {
+  outline: 2px solid #000;
+  outline-offset: 2px;
+}
+
+.addNotePopupForm > .addNoteConsentHint {
+  display: block;
+  width: var(--popup-media-width);
+  max-width: calc(100% - 20px);
+  margin: 4px auto 8px;
+  padding: 0;
+  box-sizing: border-box;
+  font-size: 11px;
+  color: #0b1020;
+  opacity: 0.85;
+  line-height: 1.35;
+  text-align: center;
+  align-self: center;
+}
+
+.addNoteConsentHint {
+  font-size: 11px;
+  color: #0b1020;
+  opacity: 0.85;
+  line-height: 1.35;
+}
+
+.addNoteConsentHint a {
+  color: #0b1020;
+  text-decoration: underline;
+}
+
+.addNoteConsentHint a:hover {
+  opacity: 0.8;
+}
+
+.addNotePopupForm textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 72px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.35;
+  text-align: left;
+  color: #000;
+  background: transparent;
+  resize: vertical;
+  box-shadow: none;
+  display: block;
+  box-sizing: border-box;
+}
+
+.addNotePopupForm textarea::placeholder {
+  font: inherit;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: rgba(0, 0, 0, 0.45);
+  opacity: 1;
+}
+
+.addNotePopupForm .addNoteFieldError {
+  margin: 8px auto 0;
+  padding: 4px 6px;
+  width: fit-content;
+  max-width: 100%;
+  font: inherit;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  color: #000;
+  background: var(--map-ui-btn-bg);
+  box-sizing: border-box;
+}
+
+.addNotePopupForm .addNoteFieldError[hidden] {
+  display: none;
+}
+
+.addNotePopupForm textarea[aria-invalid="true"] {
+  outline: 1px solid rgba(0, 0, 0, 0.2);
+  outline-offset: 2px;
+}
+
+.addNotePopupForm .addNoteSubmitRow {
+  display: block;
+  width: var(--popup-media-width);
+  max-width: calc(100% - 20px);
+  margin: 0 auto 12px;
+  align-self: center;
+}
+
+.addNotePopupForm .addNoteSubmitBtn {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 11px;
+  padding: 6px 12px;
+  min-width: 0;
+}
+
+.addNotePopupForm textarea:focus {
+  outline: none;
+}
+
+/* Compact archive: list full-screen, detail slides in (narrow or short viewports) */
+@media (max-width: 600px), (max-height: 520px) {
+  .archiveOverlayContent {
+    display: block;
+    position: relative;
+  }
+
+  .archivePane--list {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    border-bottom: none;
+  }
+
+  .archivePane--detail {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    background: var(--map-ui-btn-bg);
+    transform: translateX(100%);
+    transition: transform 0.22s ease;
+    pointer-events: none;
+    visibility: hidden;
+  }
+
+  .archiveOverlay--compact.archiveOverlay--detailOpen .archivePane--detail {
+    transform: translateX(0);
+    pointer-events: auto;
+    visibility: visible;
+  }
+
+  .archiveOverlay--compact.archiveOverlay--detailOpen .archiveDetailBack {
+    display: flex;
+  }
+}
+
+/* Landscape / short height: tighter panels */
+@media (max-height: 520px) and (orientation: landscape) {
+  .menuFilterBar {
+    max-height: 56px;
+  }
+
+  .archiveOverlayContent {
+    display: block;
+  }
+
+  .menuOverlayScroll {
+    padding-top: 8px;
+  }
+
+  .menuContent {
+    gap: 14px;
+  }
+
+  .menuContent > h2:not(:first-of-type) {
+    margin-top: 1.5em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .archivePane--detail {
+    transition: none;
+  }
+
+  .map {
+    transition: none;
+  }
+}
+
+/* Phone */
+@media (max-width: 600px) {
+  :root {
+    --panel-bar-size: 28px;
+    --lang-btn-size: 72px;
+    --lang-logo-size: 56px;
+  }
+
+  .langBtn.mapUiBtn--wide {
+    width: var(--lang-btn-size);
+    min-width: var(--lang-btn-size);
+    max-width: var(--lang-btn-size);
+  }
+
+  .langBtn.mapUiBtn--tall {
+    height: var(--lang-btn-size);
+    min-height: var(--lang-btn-size);
+    max-height: var(--lang-btn-size);
+  }
+
+  .langLogo {
+    width: var(--lang-logo-size);
+    height: var(--lang-logo-size);
+  }
+
+  .menuFilterBar {
+    padding: 6px clamp(12px, 4vw, 48px);
+    max-height: 72px;
+  }
+
+  .archiveFilterBar,
+  .archiveTagBar {
+    padding: 6px 8px;
+  }
+
+  .menuOverlayScroll {
+    padding-top: 12px;
+  }
+
+  .menuContent {
+    padding: 0 14px 18px;
+    font-size: 14px;
+  }
+
+  .menuContent p,
+  .menuContent li {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .menuContent h2 {
+    font-size: 16px;
+  }
+
+  .menuContent h3 {
+    font-size: 14px;
+  }
+
+  .archiveEntry {
+    grid-template-columns: 36px 1fr 0.95fr 1.1fr;
+    column-gap: 8px;
+    padding: 2px 8px;
+    align-items: center;
+  }
+
+  .archiveEntryWhat {
+    display: none;
+  }
+
+  .archiveEntryCategory,
+  .archiveEntryWhere,
+  .archiveEntryWhen {
+    font-size: 10px;
+    line-height: 1.2;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+  }
+
+  .archiveEntryImage {
+    width: 32px;
+    height: 26px;
+  }
+
+  .archiveDetailImageWrap::after {
+    display: none;
+  }
+
+  .archiveDetailImageWrap {
+    padding: 8px 6px 12px;
+  }
+
+  .archiveDetailMeta {
+    align-content: center;
+    justify-items: center;
+    gap: 6px;
+    padding: 8px 8px 12px;
+  }
+
+  .archiveDetailRow {
+    font-size: 12px;
+    line-height: 1.3;
+    padding: 0;
+    margin: 0;
+  }
+
+  .archiveDetailRow strong {
+    margin-bottom: 1px;
+  }
+}
+
+/* Small phone */
+@media (max-width: 380px) {
+  :root {
+    --lang-btn-size: 64px;
+    --lang-logo-size: 50px;
+  }
+
+  .menuContent {
+    padding: 0 12px 16px;
+  }
+}

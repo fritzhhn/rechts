@@ -1,0 +1,6 @@
+# macOS
+.DS_Store
+__MACOSX/
+
+# Leftover zips (don’t commit upload artifacts)
+*.zip
