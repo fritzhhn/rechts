@@ -748,6 +748,15 @@ async function loadSvgFiles() {
   }
 }
 
+/** @param {HTMLElement} markerEl */
+function setMarkerHoverLayers(markerEl, hovered) {
+  const pin1Layer = markerEl.querySelector('[data-marker-layer="default"]');
+  const pin2Layer = markerEl.querySelector('[data-marker-layer="hover"]');
+  if (!pin1Layer || !pin2Layer) return;
+  pin1Layer.style.opacity = hovered ? "0" : "1";
+  pin2Layer.style.opacity = hovered ? "1" : "0";
+}
+
 function createCustomMarkerElement() {
   const pinSvg =
     cachedPin4Svg ||
@@ -804,17 +813,18 @@ function createCustomMarkerElement() {
   inner.appendChild(pin2Layer);
   el.appendChild(inner);
   
-  // Add hover effect - crossfade between pin1 and pin2; bring above other pins
-  el.addEventListener("mouseenter", () => {
-    pin1Layer.style.opacity = "0";
-    pin2Layer.style.opacity = "1";
+  const showHover = () => {
+    setMarkerHoverLayers(el, true);
     bringMarkerWrapperToFront(el);
-  });
-  el.addEventListener("mouseleave", () => {
-    pin1Layer.style.opacity = "1";
-    pin2Layer.style.opacity = "0";
-  });
-  
+  };
+  const hideHover = () => setMarkerHoverLayers(el, false);
+
+  // Hover crossfade; pointerleave covers missed mouseleave when the map captures the pointer
+  el.addEventListener("mouseenter", showHover);
+  el.addEventListener("mouseleave", hideHover);
+  el.addEventListener("pointerleave", hideHover);
+  el.addEventListener("pointercancel", hideHover);
+
   el.setAttribute("data-marker", "true");
 
   return el;
@@ -2056,7 +2066,8 @@ function openOrToggleMarkerPopup(noteId, options = {}) {
     anchor: "bottom",
     offset: [0, -GAP_ABOVE_MARKER],
     closeButton: false,
-    closeOnClick: true,
+    // Avoid same map click closing the popup immediately (differs by browser/timing).
+    closeOnClick: false,
   })
     .setLngLat(lngLat)
     .setDOMContent(content)
@@ -2456,7 +2467,10 @@ function initMap() {
     // Click on saved note marker: open/toggle our popup above the marker (standalone Popup so anchor works)
     if (clickedSavedMarker && !clickedPreview) {
       const noteId = clickedSavedMarker.getAttribute("data-note-id");
-      if (noteId) openOrToggleMarkerPopup(noteId);
+      if (noteId) {
+        setMarkerHoverLayers(clickedSavedMarker, false);
+        queueMicrotask(() => openOrToggleMarkerPopup(noteId));
+      }
       return;
     }
 
@@ -2479,6 +2493,7 @@ function initMap() {
     }
 
     // Click on empty map: place or replace grey preview pin (no modal)
+    closeMarkerPopupIfOpen();
     if (!isInsideLeipzig(e.lngLat)) {
       const t = POPUP_I18N[currentLang] || POPUP_I18N.de;
       setStatus(t.outsideCity);
