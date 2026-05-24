@@ -229,7 +229,12 @@ function syncMinZoomToFitLeipzig() {
   const minZoom = map.getZoom();
   map.jumpTo({ center, zoom, bearing, duration: 0 });
   map.setMinZoom(minZoom);
-  if (zoom < minZoom) map.setZoom(minZoom);
+  // Do not force zoom-in here (e.g. iOS keyboard shrink would trap the map zoomed in).
+  if (!isAddNoteFormOpen() && zoom < minZoom) map.setZoom(minZoom);
+}
+
+function isAddNoteFormOpen() {
+  return addNotePopup != null;
 }
 
 /** Outside-city mask: muted grey-pink from title rgb(250, 52, 147), low opacity. */
@@ -1743,6 +1748,9 @@ function createAddNotePopupContent() {
   textarea.setAttribute("aria-describedby", "addNoteCharHint");
   bindAddNoteFieldValidation(textarea, fieldError);
   bindAddNoteMobileMapGuard(textarea);
+  if (isMobileAddNoteViewport()) {
+    textarea.style.setProperty("font-size", "16px", "important");
+  }
   textBlock.appendChild(textarea);
   textBlock.appendChild(fieldError);
   form.appendChild(textBlock);
@@ -1931,6 +1939,7 @@ function captureAddNoteMapView() {
     zoom: map.getZoom(),
     bearing: map.getBearing(),
     pitch: map.getPitch(),
+    minZoom: map.getMinZoom(),
   };
 }
 
@@ -1940,15 +1949,19 @@ function resetIosPageZoomIfNeeded() {
   if (!meta) return;
   const scale = window.visualViewport?.scale ?? 1;
   if (scale <= 1.005) return;
+  const inverse = (1 / scale).toFixed(4);
   meta.setAttribute(
     "content",
-    "width=device-width, initial-scale=1, maximum-scale=10, user-scalable=yes"
+    `width=device-width, initial-scale=${inverse}, maximum-scale=10, user-scalable=yes`
   );
   void meta.offsetHeight;
-  requestAnimationFrame(() => {
+  const finish = () => {
     meta.setAttribute("content", VIEWPORT_CONTENT_DEFAULT);
     window.scrollTo(0, 0);
-  });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  };
+  requestAnimationFrame(() => requestAnimationFrame(finish));
 }
 
 function restoreAddNoteMapView() {
@@ -1961,8 +1974,16 @@ function restoreAddNoteMapView() {
     bearing: saved.bearing,
     pitch: saved.pitch,
   });
+  if (typeof saved.minZoom === "number") map.setMinZoom(saved.minZoom);
   resetIosPageZoomIfNeeded();
   map.resize();
+}
+
+function refreshMapLayoutAfterAddNote() {
+  if (!map || isAddNoteFormOpen()) return;
+  map.resize();
+  syncMinZoomToFitLeipzig();
+  resetIosPageZoomIfNeeded();
 }
 
 function scheduleRestoreAddNoteMapView() {
@@ -2039,6 +2060,7 @@ function openAddNotePopup(lngLat) {
     .addTo(map);
   flyMapToPlacePin(center, { zoom: map.getZoom() });
   if (isMobileAddNoteViewport()) {
+    document.body.classList.add("add-note-form-open");
     startAddNoteViewportWatch();
     const armSavedMapView = () => captureAddNoteMapView();
     map.once("moveend", armSavedMapView);
@@ -2064,7 +2086,7 @@ function openAddNotePopup(lngLat) {
 
 function closeAddNotePopup() {
   pendingImageUrl = null;
-  scheduleRestoreAddNoteMapView();
+  document.body.classList.remove("add-note-form-open");
   stopAddNoteViewportWatch();
   if (addNotePopup) {
     addNotePopup.remove();
@@ -2075,6 +2097,8 @@ function closeAddNotePopup() {
     pendingSubmitMarker = null;
   }
   pendingPoint = null;
+  scheduleRestoreAddNoteMapView();
+  window.setTimeout(refreshMapLayoutAfterAddNote, 400);
 }
 
 /**
@@ -2661,6 +2685,7 @@ function initMap() {
   // Defer resize until after flyTo/move so UI doesn't jump during zoom animation.
   const onResize = () => {
     if (!map) return;
+    if (isAddNoteFormOpen()) return;
     if (typeof map.isMoving === "function" && map.isMoving()) {
       map.once("moveend", () => {
         if (map) map.resize();

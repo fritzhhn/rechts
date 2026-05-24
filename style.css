@@ -63,6 +63,13 @@ body {
   background: rgb(198, 228, 153);
 }
 
+body.add-note-form-open {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+}
+
 /* Queering the Map style: full-screen wrapper (fixed), map absolute inside so only map content zooms */
 .map-wrapper {
   position: fixed;
@@ -219,7 +226,8 @@ body:has(.archiveOverlay.open) .topHeaderBar {
 
 .leftControls,
 .bottomRightControls {
-  touch-action: manipulation;
+  /* Outside map-wrapper so pinch can reset page zoom; not touch-action: none. */
+  touch-action: auto;
 }
 
 .leftControls {
@@ -1493,11 +1501,17 @@ body.imageLightboxOpen {
 
 .addNotePopupForm textarea::placeholder {
   font-family: inherit;
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 700;
   line-height: 1.3;
   color: rgba(0, 0, 0, 0.45);
   opacity: 1;
+}
+
+@media (max-width: 480px), (pointer: coarse) {
+  .addNotePopupForm textarea::placeholder {
+    font-size: 16px;
+  }
 }
 
 .addNotePopupForm .addNoteFieldError {
