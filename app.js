@@ -234,7 +234,23 @@ function syncMinZoomToFitLeipzig() {
 }
 
 function isAddNoteFormOpen() {
-  return addNotePopup != null;
+  return addNotePopup != null || isAddNoteMobileSheetOpen();
+}
+
+function lockMapLayoutForAddNote() {
+  document.documentElement.style.setProperty("--locked-vh", `${window.innerHeight}px`);
+  document.body.classList.add("add-note-lock-layout");
+}
+
+function unlockMapLayoutForAddNote() {
+  document.body.classList.remove("add-note-lock-layout");
+  document.documentElement.style.removeProperty("--locked-vh");
+}
+
+function resetPageScrollAfterKeyboard() {
+  window.scrollTo(0, 0);
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
 }
 
 /** Outside-city mask: muted grey-pink from title rgb(250, 52, 147), low opacity. */
@@ -363,6 +379,8 @@ const POINTER_CURSOR_VIEWBOX = { w: 850.39, h: 850.39 };
 const POINTER_CURSOR_WIDTH = 22; /* 32px − 30% */
 /** @type {maplibregl.Popup|null} */
 let addNotePopup = null;
+/** @type {HTMLElement|null} */
+let addNoteMobileSheetEl = null;
 /** Map view to restore after mobile keyboard / iOS input zoom (add-note popup). */
 let addNoteSavedMapView = null;
 /** @type {(() => void)|null} */
@@ -1748,9 +1766,6 @@ function createAddNotePopupContent() {
   textarea.setAttribute("aria-describedby", "addNoteCharHint");
   bindAddNoteFieldValidation(textarea, fieldError);
   bindAddNoteMobileMapGuard(textarea);
-  if (isMobileAddNoteViewport()) {
-    textarea.style.setProperty("font-size", "16px", "important");
-  }
   textBlock.appendChild(textarea);
   textBlock.appendChild(fieldError);
   form.appendChild(textBlock);
@@ -1799,9 +1814,11 @@ function createAddNotePopupContent() {
 
 /** Update the open add-note popup to the current language (placeholder + consent text). */
 function updateAddNotePopupLang() {
-  if (!addNotePopup) return;
+  if (!isAddNoteFormOpen()) return;
   let content = null;
-  if (typeof addNotePopup.getContainer === "function") {
+  if (isAddNoteMobileSheetOpen()) {
+    content = addNoteMobileSheetEl;
+  } else if (typeof addNotePopup?.getContainer === "function") {
     content = addNotePopup.getContainer();
   }
   if (!content && map) {
@@ -1924,12 +1941,12 @@ function setLanguage(lang) {
   updateAddNotePopupLang();
 }
 
-/** Matches index.html viewport meta — never downgrade maximum-scale when resetting iOS zoom. */
-const VIEWPORT_CONTENT_DEFAULT =
-  "width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover";
-
 function isMobileAddNoteViewport() {
-  return window.matchMedia("(max-width: 480px), (pointer: coarse)").matches;
+  return window.matchMedia("(max-width: 600px), (pointer: coarse)").matches;
+}
+
+function isAddNoteMobileSheetOpen() {
+  return !!(addNoteMobileSheetEl && !addNoteMobileSheetEl.hidden);
 }
 
 function captureAddNoteMapView() {
@@ -1943,27 +1960,6 @@ function captureAddNoteMapView() {
   };
 }
 
-/** Reset iOS Safari page zoom after input focus (must not set maximum-scale=1 or pinch stays locked). */
-function resetIosPageZoomIfNeeded() {
-  const meta = document.querySelector('meta[name="viewport"]');
-  if (!meta) return;
-  const scale = window.visualViewport?.scale ?? 1;
-  if (scale <= 1.005) return;
-  const inverse = (1 / scale).toFixed(4);
-  meta.setAttribute(
-    "content",
-    `width=device-width, initial-scale=${inverse}, maximum-scale=10, user-scalable=yes`
-  );
-  void meta.offsetHeight;
-  const finish = () => {
-    meta.setAttribute("content", VIEWPORT_CONTENT_DEFAULT);
-    window.scrollTo(0, 0);
-    document.documentElement.scrollTop = 0;
-    document.body.scrollTop = 0;
-  };
-  requestAnimationFrame(() => requestAnimationFrame(finish));
-}
-
 function restoreAddNoteMapView() {
   const saved = addNoteSavedMapView;
   addNoteSavedMapView = null;
@@ -1975,15 +1971,15 @@ function restoreAddNoteMapView() {
     pitch: saved.pitch,
   });
   if (typeof saved.minZoom === "number") map.setMinZoom(saved.minZoom);
-  resetIosPageZoomIfNeeded();
-  map.resize();
+  resetPageScrollAfterKeyboard();
 }
 
 function refreshMapLayoutAfterAddNote() {
   if (!map || isAddNoteFormOpen()) return;
+  unlockMapLayoutForAddNote();
   map.resize();
   syncMinZoomToFitLeipzig();
-  resetIosPageZoomIfNeeded();
+  resetPageScrollAfterKeyboard();
 }
 
 function scheduleRestoreAddNoteMapView() {
@@ -2000,11 +1996,10 @@ function startAddNoteViewportWatch() {
     const vv = window.visualViewport;
     if (!vv) return;
     if (vv.height > lastHeight + 48) {
-      resetIosPageZoomIfNeeded();
+      resetPageScrollAfterKeyboard();
       if (addNoteSavedMapView) scheduleRestoreAddNoteMapView();
     }
     lastHeight = vv.height;
-    if (vv.scale > 1.005) resetIosPageZoomIfNeeded();
   };
   window.visualViewport.addEventListener("resize", addNoteVisualViewportHandler);
 }
@@ -2018,26 +2013,47 @@ function stopAddNoteViewportWatch() {
 function bindAddNoteMobileMapGuard(textarea) {
   if (!textarea || textarea.dataset.mobileMapGuardBound === "1" || !isMobileAddNoteViewport()) return;
   textarea.dataset.mobileMapGuardBound = "1";
-  textarea.setAttribute("readonly", "");
-  textarea.addEventListener(
-    "touchstart",
-    () => {
-      textarea.removeAttribute("readonly");
-    },
-    { passive: true }
-  );
-  textarea.addEventListener("focus", () => {
-    textarea.removeAttribute("readonly");
-    if (!addNoteSavedMapView) captureAddNoteMapView();
-  });
+  textarea.style.setProperty("font-size", "17px", "important");
   textarea.addEventListener("blur", () => {
     window.setTimeout(() => {
       const active = document.activeElement;
       if (active === textarea || (active && active.closest?.(".addNotePopupForm"))) return;
-      resetIosPageZoomIfNeeded();
+      resetPageScrollAfterKeyboard();
       scheduleRestoreAddNoteMapView();
-    }, 120);
+    }, 150);
   });
+}
+
+function ensureAddNoteMobileSheet() {
+  if (addNoteMobileSheetEl) return addNoteMobileSheetEl;
+  const sheet = document.createElement("div");
+  sheet.id = "addNoteMobileSheet";
+  sheet.className = "addNoteMobileSheet";
+  sheet.hidden = true;
+  sheet.addEventListener("click", (e) => e.stopPropagation());
+  sheet.addEventListener("touchstart", (e) => e.stopPropagation(), { passive: true });
+  document.body.appendChild(sheet);
+  addNoteMobileSheetEl = sheet;
+  return sheet;
+}
+
+function openAddNoteMobileSheet(lngLat, content) {
+  const sheet = ensureAddNoteMobileSheet();
+  sheet.replaceChildren(content);
+  sheet.hidden = false;
+  addNoteSavedMapView = null;
+  document.body.classList.add("add-note-form-open");
+  lockMapLayoutForAddNote();
+  startAddNoteViewportWatch();
+
+  const center = Array.isArray(lngLat) ? lngLat : [lngLat.lng, lngLat.lat];
+  captureAddNoteMapView();
+  flyMapToPlacePin(center, { zoom: map.getZoom() });
+  map.once("moveend", () => captureAddNoteMapView());
+  window.setTimeout(() => captureAddNoteMapView(), 600);
+
+  const ta = content.querySelector("textarea");
+  if (ta) ta.value = "";
 }
 
 function openAddNotePopup(lngLat) {
@@ -2045,9 +2061,21 @@ function openAddNotePopup(lngLat) {
     addNotePopup.remove();
     addNotePopup = null;
   }
+  if (addNoteMobileSheetEl) {
+    addNoteMobileSheetEl.hidden = true;
+    addNoteMobileSheetEl.replaceChildren();
+  }
   addNoteSavedMapView = null;
+  unlockMapLayoutForAddNote();
+
   const content = createAddNotePopupContent();
   const center = Array.isArray(lngLat) ? lngLat : [lngLat.lng, lngLat.lat];
+
+  if (isMobileAddNoteViewport()) {
+    openAddNoteMobileSheet(center, content);
+    return;
+  }
+
   const popupOptions = {
     anchor: "bottom",
     offset: [0, -GAP_ABOVE_MARKER],
@@ -2059,13 +2087,6 @@ function openAddNotePopup(lngLat) {
     .setDOMContent(content)
     .addTo(map);
   flyMapToPlacePin(center, { zoom: map.getZoom() });
-  if (isMobileAddNoteViewport()) {
-    document.body.classList.add("add-note-form-open");
-    startAddNoteViewportWatch();
-    const armSavedMapView = () => captureAddNoteMapView();
-    map.once("moveend", armSavedMapView);
-    window.setTimeout(armSavedMapView, 550);
-  }
   addNotePopup.on("close", () => {
     closeAddNotePopup();
   });
@@ -2075,10 +2096,8 @@ function openAddNotePopup(lngLat) {
         const ta = content.querySelector("textarea");
         if (!ta) return;
         ta.value = "";
-        if (!isMobileAddNoteViewport()) {
-          ta.focus();
-          ta.setSelectionRange(0, 0);
-        }
+        ta.focus();
+        ta.setSelectionRange(0, 0);
       });
     });
   });
@@ -2092,6 +2111,11 @@ function closeAddNotePopup() {
     addNotePopup.remove();
     addNotePopup = null;
   }
+  if (addNoteMobileSheetEl) {
+    addNoteMobileSheetEl.hidden = true;
+    addNoteMobileSheetEl.replaceChildren();
+  }
+  unlockMapLayoutForAddNote();
   if (pendingSubmitMarker) {
     pendingSubmitMarker.remove();
     pendingSubmitMarker = null;
@@ -2709,6 +2733,21 @@ function initMap() {
 
     const originalEvent = e.originalEvent;
     const target = originalEvent && originalEvent.target ? originalEvent.target : null;
+
+    if (isAddNoteMobileSheetOpen()) {
+      const inChrome =
+        target &&
+        target.closest &&
+        (target.closest(".addNoteMobileSheet") ||
+          target.closest(".leftControls") ||
+          target.closest(".bottomRightControls") ||
+          target.closest(".menuOverlay") ||
+          target.closest(".archiveOverlay"));
+      if (!inChrome) {
+        closeAddNotePopup();
+        return;
+      }
+    }
     const clickedPreview = target && target.closest && target.closest('[data-preview-marker="true"]');
     const clickedSavedMarker = target && target.closest && target.closest('[data-marker="true"]');
 

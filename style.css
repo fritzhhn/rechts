@@ -70,6 +70,47 @@ body.add-note-form-open {
   height: 100%;
 }
 
+/* Lock map height while add-note sheet is open so iOS keyboard shrink does not refit/zoom the map. */
+body.add-note-lock-layout .map-wrapper {
+  height: var(--locked-vh, 100dvh) !important;
+  max-height: var(--locked-vh, 100dvh) !important;
+}
+
+/* Mobile add-note: fixed sheet on body (not inside map touch-action:none). */
+.addNoteMobileSheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1100;
+  max-height: min(72dvh, 85%);
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: auto;
+  background: var(--map-ui-btn-bg);
+  border-radius: var(--map-ui-radius) var(--map-ui-radius) 0 0;
+  box-shadow: 0 -6px 28px rgba(0, 0, 0, 0.18);
+  padding: 10px 10px calc(10px + env(safe-area-inset-bottom, 0));
+  box-sizing: border-box;
+}
+
+.addNoteMobileSheet[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 600px), (pointer: coarse) {
+  .addNotePopupForm textarea,
+  .addNotePopupForm .addNoteSubmitBtn,
+  .addNotePopupForm .addNotePhotoLabel {
+    font-size: 17px;
+  }
+
+  .addNotePopupForm textarea::placeholder {
+    font-size: 17px;
+  }
+}
+
 /* Queering the Map style: full-screen wrapper (fixed), map absolute inside so only map content zooms */
 .map-wrapper {
   position: fixed;
