@@ -1946,7 +1946,11 @@ function isMobileAddNoteViewport() {
 }
 
 function isAddNoteMobileSheetOpen() {
-  return !!(addNoteMobileSheetEl && !addNoteMobileSheetEl.hidden);
+  return !!(
+    addNoteMobileSheetEl &&
+    !addNoteMobileSheetEl.hidden &&
+    addNoteMobileSheetEl.classList.contains("addNoteMobileSheet--visible")
+  );
 }
 
 function captureAddNoteMapView() {
@@ -2037,10 +2041,18 @@ function ensureAddNoteMobileSheet() {
   return sheet;
 }
 
+function reflyMapForOpenAddNoteSheet(lngLat) {
+  if (!map) return;
+  const center = Array.isArray(lngLat) ? lngLat : [lngLat.lng, lngLat.lat];
+  flyMapToPlacePinForAddNote(center, { zoom: map.getZoom() });
+  map.once("moveend", () => captureAddNoteMapView());
+}
+
 function openAddNoteMobileSheet(lngLat, content) {
   const sheet = ensureAddNoteMobileSheet();
   sheet.replaceChildren(content);
   sheet.hidden = false;
+  sheet.classList.remove("addNoteMobileSheet--open");
   addNoteSavedMapView = null;
   document.body.classList.add("add-note-form-open");
   lockMapLayoutForAddNote();
@@ -2048,12 +2060,46 @@ function openAddNoteMobileSheet(lngLat, content) {
 
   const center = Array.isArray(lngLat) ? lngLat : [lngLat.lng, lngLat.lat];
   captureAddNoteMapView();
-  flyMapToPlacePin(center, { zoom: map.getZoom() });
-  map.once("moveend", () => captureAddNoteMapView());
-  window.setTimeout(() => captureAddNoteMapView(), 600);
+
+  requestAnimationFrame(() => {
+    sheet.classList.add("addNoteMobileSheet--visible");
+    requestAnimationFrame(() => {
+      sheet.classList.add("addNoteMobileSheet--open");
+      reflyMapForOpenAddNoteSheet(center);
+      const onSlideEnd = (e) => {
+        if (e.target !== sheet || e.propertyName !== "transform") return;
+        sheet.removeEventListener("transitionend", onSlideEnd);
+        reflyMapForOpenAddNoteSheet(center);
+      };
+      sheet.addEventListener("transitionend", onSlideEnd);
+      window.setTimeout(() => reflyMapForOpenAddNoteSheet(center), PANEL_SLIDE_MS + 40);
+    });
+  });
 
   const ta = content.querySelector("textarea");
   if (ta) ta.value = "";
+}
+
+function closeAddNoteMobileSheetAnimated(done) {
+  const sheet = addNoteMobileSheetEl;
+  if (!sheet || sheet.hidden || !sheet.classList.contains("addNoteMobileSheet--open")) {
+    done?.();
+    return;
+  }
+  sheet.classList.remove("addNoteMobileSheet--open");
+  const finish = () => {
+    sheet.classList.remove("addNoteMobileSheet--visible");
+    sheet.hidden = true;
+    sheet.replaceChildren();
+    done?.();
+  };
+  const onEnd = (e) => {
+    if (e.target !== sheet || e.propertyName !== "transform") return;
+    sheet.removeEventListener("transitionend", onEnd);
+    finish();
+  };
+  sheet.addEventListener("transitionend", onEnd);
+  window.setTimeout(finish, PANEL_SLIDE_MS + 80);
 }
 
 function openAddNotePopup(lngLat) {
@@ -2062,6 +2108,7 @@ function openAddNotePopup(lngLat) {
     addNotePopup = null;
   }
   if (addNoteMobileSheetEl) {
+    addNoteMobileSheetEl.classList.remove("addNoteMobileSheet--open", "addNoteMobileSheet--visible");
     addNoteMobileSheetEl.hidden = true;
     addNoteMobileSheetEl.replaceChildren();
   }
@@ -2103,7 +2150,7 @@ function openAddNotePopup(lngLat) {
   });
 }
 
-function closeAddNotePopup() {
+function closeAddNotePopup(options = {}) {
   pendingImageUrl = null;
   document.body.classList.remove("add-note-form-open");
   stopAddNoteViewportWatch();
@@ -2111,18 +2158,29 @@ function closeAddNotePopup() {
     addNotePopup.remove();
     addNotePopup = null;
   }
+
+  const finalizeClose = () => {
+    unlockMapLayoutForAddNote();
+    if (pendingSubmitMarker) {
+      pendingSubmitMarker.remove();
+      pendingSubmitMarker = null;
+    }
+    pendingPoint = null;
+    scheduleRestoreAddNoteMapView();
+    window.setTimeout(refreshMapLayoutAfterAddNote, 400);
+    options.onClosed?.();
+  };
+
+  if (addNoteMobileSheetEl && !addNoteMobileSheetEl.hidden && addNoteMobileSheetEl.classList.contains("addNoteMobileSheet--open")) {
+    closeAddNoteMobileSheetAnimated(finalizeClose);
+    return;
+  }
   if (addNoteMobileSheetEl) {
+    addNoteMobileSheetEl.classList.remove("addNoteMobileSheet--open", "addNoteMobileSheet--visible");
     addNoteMobileSheetEl.hidden = true;
     addNoteMobileSheetEl.replaceChildren();
   }
-  unlockMapLayoutForAddNote();
-  if (pendingSubmitMarker) {
-    pendingSubmitMarker.remove();
-    pendingSubmitMarker = null;
-  }
-  pendingPoint = null;
-  scheduleRestoreAddNoteMapView();
-  window.setTimeout(refreshMapLayoutAfterAddNote, 400);
+  finalizeClose();
 }
 
 /**
@@ -2160,11 +2218,12 @@ function submitNote(noteText, buttonEl, category = DEFAULT_NOTE_CATEGORY, tags =
       }
       addMarker(item);
     }
-    closeAddNotePopup();
     document.activeElement && document.activeElement.blur && document.activeElement.blur();
-    requestAnimationFrame(() => {
-      if (!map) return;
-      openOrToggleMarkerPopup(item.id);
+    closeAddNotePopup({
+      onClosed: () => {
+        if (!map) return;
+        openOrToggleMarkerPopup(item.id);
+      },
     });
   };
   const imageUrl = pendingImageUrl || pickRandomArchiveImageUrl();
@@ -2185,6 +2244,25 @@ function submitNote(noteText, buttonEl, category = DEFAULT_NOTE_CATEGORY, tags =
 
 const GAP_ABOVE_MARKER = 80; // gap between popup tip and top of marker (popup above marker)
 const MARKER_OFFSET_BELOW_CENTER = 200; // when centering on marker, place marker this many px below visual center
+const PANEL_SLIDE_MS = 220;
+
+/** Pixel offset for flyMapToPlacePin: pin appears this far below map center (negative = above center). */
+function getAddNotePlacementOffsetPx() {
+  if (!map?.getContainer()) return MARKER_OFFSET_BELOW_CENTER;
+  if (!isMobileAddNoteViewport() || !addNoteMobileSheetEl || addNoteMobileSheetEl.hidden) {
+    return MARKER_OFFSET_BELOW_CENTER;
+  }
+  const mapH = map.getContainer().clientHeight;
+  const sheetH = addNoteMobileSheetEl.getBoundingClientRect().height;
+  if (mapH <= 0 || sheetH <= 0) return MARKER_OFFSET_BELOW_CENTER;
+  const visibleCenterY = (mapH - sheetH) / 2;
+  return visibleCenterY - mapH / 2;
+}
+
+function flyMapToPlacePinForAddNote(lngLat, options = {}) {
+  const offsetPx = options.offsetPx ?? getAddNotePlacementOffsetPx();
+  flyMapToPlacePin(lngLat, { ...options, offsetPx });
+}
 /** At max zoom-out, ease in slightly so the centering pan fits inside maxBounds. */
 const CAMERA_PLACEMENT_ZOOM_HEADROOM = 0.5;
 const CAMERA_PLACEMENT_DURATION_MS = 480;
@@ -2872,7 +2950,68 @@ function setArchiveDetailOpen(open) {
 }
 
 function closeArchiveDetailPanel() {
+  if (!archiveOverlay?.classList.contains("archiveOverlay--detailOpen")) return;
   setArchiveDetailOpen(false);
+}
+
+function bindArchiveDetailSwipeBack() {
+  const pane = document.querySelector(".archivePane--detail");
+  if (!pane || pane.dataset.swipeBackBound === "1") return;
+  pane.dataset.swipeBackBound = "1";
+  let startX = 0;
+  let startY = 0;
+  let dragging = false;
+  let active = false;
+
+  pane.addEventListener(
+    "touchstart",
+    (e) => {
+      if (!archiveOverlay?.classList.contains("archiveOverlay--detailOpen")) return;
+      const scrollEl = pane.querySelector(".archiveDetail");
+      if (scrollEl && scrollEl.scrollTop > 6) return;
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      dragging = false;
+      active = true;
+    },
+    { passive: true }
+  );
+
+  pane.addEventListener(
+    "touchmove",
+    (e) => {
+      if (!active) return;
+      const x = e.touches[0].clientX;
+      const y = e.touches[0].clientY;
+      const dx = x - startX;
+      const dy = y - startY;
+      if (!dragging) {
+        if (Math.abs(dx) < 10) return;
+        if (Math.abs(dy) > Math.abs(dx)) {
+          active = false;
+          return;
+        }
+        dragging = true;
+        pane.classList.add("archivePane--detail--dragging");
+      }
+      if (dx > 0) pane.style.transform = `translateX(${dx}px)`;
+    },
+    { passive: true }
+  );
+
+  const endDrag = (e) => {
+    if (!active) return;
+    active = false;
+    if (!dragging) return;
+    dragging = false;
+    pane.classList.remove("archivePane--detail--dragging");
+    const dx = e.changedTouches[0].clientX - startX;
+    pane.style.transform = "";
+    if (dx > 72) closeArchiveDetailPanel();
+  };
+
+  pane.addEventListener("touchend", endDrag);
+  pane.addEventListener("touchcancel", endDrag);
 }
 
 function updateArchiveDetailBackLabel() {
@@ -3209,6 +3348,7 @@ function initApp() {
   if (archiveDetailBack) {
     archiveDetailBack.addEventListener("click", closeArchiveDetailPanel);
   }
+  bindArchiveDetailSwipeBack();
   updateArchiveDetailBackLabel();
   syncArchiveCompactLayout();
   window.addEventListener("resize", syncArchiveCompactLayout);
