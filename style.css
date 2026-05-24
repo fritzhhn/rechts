@@ -1535,6 +1535,13 @@ body.imageLightboxOpen {
   outline: none;
 }
 
+/* 16px+ on touch avoids iOS Safari input zoom (page has maximum-scale=1). */
+@media (max-width: 480px), (pointer: coarse) {
+  .addNotePopupForm textarea {
+    font-size: 16px;
+  }
+}
+
 /* Compact archive: list full-screen, detail slides in (narrow or short viewports) */
 @media (max-width: 600px), (max-height: 520px) {
   .archiveOverlayContent {
