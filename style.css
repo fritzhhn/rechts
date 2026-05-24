@@ -217,6 +217,11 @@ body:has(.archiveOverlay.open) .topHeaderBar {
   box-shadow: none;
 }
 
+.leftControls,
+.bottomRightControls {
+  touch-action: manipulation;
+}
+
 .leftControls {
   position: fixed;
   top: 0;
@@ -974,11 +979,14 @@ body:has(.archiveOverlay.open) .topHeaderBar {
   display: flex;
   flex-direction: column;
   align-items: center;
+  /* Allow pinch-to-zoom page back out if iOS zoomed on input focus (map canvas uses touch-action: none). */
+  touch-action: auto;
 }
 /* MapLibre popup – matches map UI colors (no transform on content — keeps text sharp) */
 .maplibregl-popup-content {
   font-family: var(--font-sans);
   font-size: 14px;
+  touch-action: auto;
   line-height: 1.5;
   color: #000;
   width: min(320px, calc(100vw - 48px - env(safe-area-inset-left, 0) - env(safe-area-inset-right, 0)));
@@ -1024,6 +1032,7 @@ body:has(.archiveOverlay.open) .topHeaderBar {
   font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.5;
+  touch-action: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1469,8 +1478,8 @@ body.imageLightboxOpen {
   padding: 0;
   border: none;
   border-radius: 0;
-  font: inherit;
-  font-size: 14px;
+  font-family: var(--font-sans);
+  font-size: 16px;
   line-height: 1.5;
   text-align: left;
   color: #000;
@@ -1479,11 +1488,12 @@ body.imageLightboxOpen {
   box-shadow: none;
   display: block;
   box-sizing: border-box;
+  -webkit-text-size-adjust: 100%;
 }
 
 .addNotePopupForm textarea::placeholder {
-  font: inherit;
-  font-size: 11px;
+  font-family: inherit;
+  font-size: 16px;
   font-weight: 700;
   line-height: 1.3;
   color: rgba(0, 0, 0, 0.45);
@@ -1533,13 +1543,6 @@ body.imageLightboxOpen {
 
 .addNotePopupForm textarea:focus {
   outline: none;
-}
-
-/* 16px+ on touch avoids iOS Safari input zoom (page has maximum-scale=1). */
-@media (max-width: 480px), (pointer: coarse) {
-  .addNotePopupForm textarea {
-    font-size: 16px;
-  }
 }
 
 /* Compact archive: list full-screen, detail slides in (narrow or short viewports) */

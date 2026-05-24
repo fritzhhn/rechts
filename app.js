@@ -1916,6 +1916,10 @@ function setLanguage(lang) {
   updateAddNotePopupLang();
 }
 
+/** Matches index.html viewport meta — never downgrade maximum-scale when resetting iOS zoom. */
+const VIEWPORT_CONTENT_DEFAULT =
+  "width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover";
+
 function isMobileAddNoteViewport() {
   return window.matchMedia("(max-width: 480px), (pointer: coarse)").matches;
 }
@@ -1930,17 +1934,21 @@ function captureAddNoteMapView() {
   };
 }
 
-/** Undo iOS page zoom after a sub-16px input focus (viewport has maximum-scale=1). */
+/** Reset iOS Safari page zoom after input focus (must not set maximum-scale=1 or pinch stays locked). */
 function resetIosPageZoomIfNeeded() {
   const meta = document.querySelector('meta[name="viewport"]');
   if (!meta) return;
-  const normal =
-    "width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover";
   const scale = window.visualViewport?.scale ?? 1;
-  if (scale <= 1.01) return;
-  meta.setAttribute("content", "width=device-width, initial-scale=1, maximum-scale=1.01");
+  if (scale <= 1.005) return;
+  meta.setAttribute(
+    "content",
+    "width=device-width, initial-scale=1, maximum-scale=10, user-scalable=yes"
+  );
   void meta.offsetHeight;
-  meta.setAttribute("content", normal);
+  requestAnimationFrame(() => {
+    meta.setAttribute("content", VIEWPORT_CONTENT_DEFAULT);
+    window.scrollTo(0, 0);
+  });
 }
 
 function restoreAddNoteMapView() {
@@ -1970,11 +1978,12 @@ function startAddNoteViewportWatch() {
     if (!addNotePopup) return;
     const vv = window.visualViewport;
     if (!vv) return;
-    if (vv.height > lastHeight + 48 && addNoteSavedMapView) {
-      scheduleRestoreAddNoteMapView();
+    if (vv.height > lastHeight + 48) {
+      resetIosPageZoomIfNeeded();
+      if (addNoteSavedMapView) scheduleRestoreAddNoteMapView();
     }
     lastHeight = vv.height;
-    if (vv.scale <= 1.01) resetIosPageZoomIfNeeded();
+    if (vv.scale > 1.005) resetIosPageZoomIfNeeded();
   };
   window.visualViewport.addEventListener("resize", addNoteVisualViewportHandler);
 }
@@ -1988,13 +1997,23 @@ function stopAddNoteViewportWatch() {
 function bindAddNoteMobileMapGuard(textarea) {
   if (!textarea || textarea.dataset.mobileMapGuardBound === "1" || !isMobileAddNoteViewport()) return;
   textarea.dataset.mobileMapGuardBound = "1";
+  textarea.setAttribute("readonly", "");
+  textarea.addEventListener(
+    "touchstart",
+    () => {
+      textarea.removeAttribute("readonly");
+    },
+    { passive: true }
+  );
   textarea.addEventListener("focus", () => {
+    textarea.removeAttribute("readonly");
     if (!addNoteSavedMapView) captureAddNoteMapView();
   });
   textarea.addEventListener("blur", () => {
     window.setTimeout(() => {
       const active = document.activeElement;
       if (active === textarea || (active && active.closest?.(".addNotePopupForm"))) return;
+      resetIosPageZoomIfNeeded();
       scheduleRestoreAddNoteMapView();
     }, 120);
   });
@@ -2018,7 +2037,7 @@ function openAddNotePopup(lngLat) {
     .setLngLat(center)
     .setDOMContent(content)
     .addTo(map);
-  flyMapToPlacePin(center);
+  flyMapToPlacePin(center, { zoom: map.getZoom() });
   if (isMobileAddNoteViewport()) {
     startAddNoteViewportWatch();
     const armSavedMapView = () => captureAddNoteMapView();
