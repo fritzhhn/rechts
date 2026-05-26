@@ -347,7 +347,6 @@ body.add-note-lock-layout .map-wrapper {
   z-index: 6;
 }
 /* Preview placement pin: black outline only */
-.maplibregl-marker [data-preview-marker="true"] .pin3-st0,
 .maplibregl-marker [data-preview-marker="true"] .pin4-cls-1,
 .maplibregl-marker [data-preview-marker="true"] svg path,
 .maplibregl-marker [data-preview-marker="true"] svg polygon,
@@ -460,7 +459,7 @@ body:has(.archiveOverlay.open) .topHeaderBar {
   box-shadow: var(--map-ui-shadow);
 }
 
-.leftControls .langBtn {
+.leftControls .instagramBtn {
   margin-top: var(--map-ui-btn-gap);
 }
 
@@ -540,7 +539,7 @@ body:has(.archiveOverlay.open) .topHeaderBar {
   }
 }
 
-.langBtn {
+.instagramBtn {
   font-size: 14px;
   font-weight: 600;
 }
@@ -585,24 +584,24 @@ body:has(.archiveOverlay.open) .topHeaderBar {
   }
 }
 
-.langBtn.mapUiBtn--wide {
+.instagramBtn.mapUiBtn--wide {
   width: 96px;
   min-width: 96px;
   max-width: 96px;
 }
 
-.langBtn.mapUiBtn--tall {
+.instagramBtn.mapUiBtn--tall {
   height: 96px;
   min-height: 96px;
   max-height: 96px;
 }
 
-.langBtn {
+.instagramBtn {
   color: #000;
   text-decoration: none;
 }
 
-.langLogo {
+.instagramLogo {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -614,7 +613,7 @@ body:has(.archiveOverlay.open) .topHeaderBar {
   overflow: hidden;
 }
 
-.langLogo img {
+.instagramLogo img {
   display: block;
   width: 72%;
   height: auto;
@@ -1897,25 +1896,25 @@ body.imageLightboxOpen {
 @media (max-width: 600px) {
   :root {
     --panel-bar-size: 28px;
-    --lang-btn-size: 72px;
-    --lang-logo-size: 56px;
+    --instagram-btn-size: 72px;
+    --instagram-logo-size: 56px;
   }
 
-  .langBtn.mapUiBtn--wide {
-    width: var(--lang-btn-size);
-    min-width: var(--lang-btn-size);
-    max-width: var(--lang-btn-size);
+  .instagramBtn.mapUiBtn--wide {
+    width: var(--instagram-btn-size);
+    min-width: var(--instagram-btn-size);
+    max-width: var(--instagram-btn-size);
   }
 
-  .langBtn.mapUiBtn--tall {
-    height: var(--lang-btn-size);
-    min-height: var(--lang-btn-size);
-    max-height: var(--lang-btn-size);
+  .instagramBtn.mapUiBtn--tall {
+    height: var(--instagram-btn-size);
+    min-height: var(--instagram-btn-size);
+    max-height: var(--instagram-btn-size);
   }
 
-  .langLogo {
-    width: var(--lang-logo-size);
-    height: var(--lang-logo-size);
+  .instagramLogo {
+    width: var(--instagram-logo-size);
+    height: var(--instagram-logo-size);
   }
 
   .menuFilterBar {
@@ -2006,8 +2005,8 @@ body.imageLightboxOpen {
 /* Small phone */
 @media (max-width: 380px) {
   :root {
-    --lang-btn-size: 64px;
-    --lang-logo-size: 50px;
+    --instagram-btn-size: 64px;
+    --instagram-logo-size: 50px;
   }
 
   .menuContent {

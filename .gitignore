@@ -1,8 +1,6 @@
 # macOS
 .DS_Store
 
-# Local API credentials
-api/config.php
 __MACOSX/
 
 # Leftover zips (don’t commit upload artifacts)

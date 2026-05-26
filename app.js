@@ -365,8 +365,6 @@ let cachedPin1Svg = null;
 /** @type {string|null} */
 let cachedPin2Svg = null;
 /** @type {string|null} */
-let cachedPin3Svg = null;
-/** @type {string|null} */
 let cachedPin4Svg = null;
 /** Raw pointer.svg for page cursor (unmodified). */
 let cachedPointerRaw = null;
@@ -868,11 +866,10 @@ function applyAppCursor() {
 // Preload SVG files and cache them
 async function loadSvgFiles() {
   try {
-    const [pin1Response, pin2Response, pin3Response, pin4Response, pointerResponse] =
+    const [pin1Response, pin2Response, pin4Response, pointerResponse] =
       await Promise.all([
       fetch("icons/pin1.svg"),
       fetch("icons/pin2.svg"),
-      fetch("icons/pin3.svg"),
       fetch("icons/pin4.svg"),
       fetch("icons/pointer.svg"),
     ]);
@@ -897,17 +894,6 @@ async function loadSvgFiles() {
       cachedPin2Svg = null;
     }
 
-    if (pin3Response.ok) {
-      const pin3Text = await pin3Response.text();
-      cachedPin3Svg = setMarkerFill(
-        namespaceSvgClasses(pin3Text, "pin3"),
-        "#000"
-      );
-    } else {
-      console.warn("Failed to load icons/pin3.svg, using fallback");
-      cachedPin3Svg = null;
-    }
-
     if (pointerResponse.ok) {
       cachedPointerRaw = await pointerResponse.text();
       applyAppCursor();
@@ -927,7 +913,6 @@ async function loadSvgFiles() {
     // If fetch fails (e.g., file:// protocol), use embedded fallback
     cachedPin1Svg = null;
     cachedPin2Svg = null;
-    cachedPin3Svg = null;
     cachedPin4Svg = null;
     cachedPointerRaw = null;
   }
@@ -1039,7 +1024,7 @@ function createCustomMarkerElement() {
 
 /** Preview pin for "preview" placement (first click); no hover. */
 function createPreviewMarkerElement() {
-  const previewSvg = cachedPin4Svg || cachedPin3Svg || cachedPin1Svg || "";
+  const previewSvg = cachedPin4Svg || cachedPin1Svg || "";
   const el = document.createElement("div");
   el.style.display = "block";
   el.style.userSelect = "none";

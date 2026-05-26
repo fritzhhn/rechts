@@ -1,10 +1,6 @@
-# Rechts map
+# FASCHO NOT FOUND
 
-Map for anonymously sharing and viewing experiences.
-
-## Visual / UI work (no database)
-
-Pins are stored in your browser (`localStorage`) only. No PHP or MySQL needed.
+Leipzig map for documenting and viewing far-right stickers, posters, and related propaganda in public space. Pins are stored in the browser (`localStorage`) for local development — no database required.
 
 From the project folder:
 
