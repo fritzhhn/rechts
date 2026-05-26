@@ -409,7 +409,26 @@ function setMarkerFill(svgText, fillHex) {
   );
 }
 
-function setStatus(msg) {
+let statusClearTimer = null;
+
+/**
+ * @param {string} msg
+ * @param {{ variant?: "default" | "mapUi"; autoDismiss?: boolean }} [options]
+ */
+function setStatus(msg, options = {}) {
+  const el = document.getElementById("appStatus");
+  if (statusClearTimer) {
+    clearTimeout(statusClearTimer);
+    statusClearTimer = null;
+  }
+  if (el) {
+    el.textContent = msg || "";
+    el.hidden = !msg;
+    el.classList.toggle("appStatus--mapUi", options.variant === "mapUi");
+  }
+  if (msg && options.autoDismiss) {
+    statusClearTimer = window.setTimeout(() => setStatus(""), 4500);
+  }
   if (msg) console.warn(msg);
 }
 
@@ -531,7 +550,7 @@ function ensureDemoImagesOnNotes() {
 function ensureExtraSeedNotes() {
   try {
     if (localStorage.getItem(EXTRA_SEEDS_STORAGE_KEY)) return;
-  } catch {
+    } catch {
     return;
   }
   const existing = new Set(notes.map((n) => `${n.note}|${n.lng}|${n.lat}`));
@@ -831,6 +850,28 @@ function setMarkerHoverLayers(markerEl, hovered) {
   if (!pin1Layer || !pin2Layer) return;
   pin1Layer.style.opacity = hovered ? "0" : "1";
   pin2Layer.style.opacity = hovered ? "1" : "0";
+  markerEl.classList.toggle("mapMarker--emphasized", !!hovered);
+}
+
+function clearAllMarkerEmphasis() {
+  const container = map?.getContainer?.();
+  if (!container) return;
+  container.querySelectorAll('[data-marker="true"]').forEach((el) => setMarkerHoverLayers(el, false));
+}
+
+/** Green (hover) pin for the note popup open or add-note placement in progress. */
+function syncActiveMarkerEmphasis() {
+  clearAllMarkerEmphasis();
+  if (pendingSubmitMarker) {
+    setMarkerHoverLayers(pendingSubmitMarker.getElement(), true);
+    bringMarkerWrapperToFront(pendingSubmitMarker.getElement());
+    return;
+  }
+  if (openMarkerPopupId && markersById.has(openMarkerPopupId)) {
+    const el = markersById.get(openMarkerPopupId).getElement();
+    setMarkerHoverLayers(el, true);
+    bringMarkerWrapperToFront(el);
+  }
 }
 
 function createCustomMarkerElement() {
@@ -839,14 +880,14 @@ function createCustomMarkerElement() {
     cachedPin1Svg ||
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10.23 20.24" style="width: 100%; height: 100%; display: block;"><polygon points="9.07 5.66 10.24 1.43 2.04 0 1.19 2.51 6.47 3.52 6.2 4.36 0 6.2 0 9.59 4.55 11.47 4.62 20.24 9.09 10.34 9.13 7.62 6.56 7.62 9.07 5.66"/></svg>`;
   const pinHoverSvg = cachedPin4Svg || cachedPin2Svg || pinSvg;
-
+  
   // Outer container - MapLibre controls this for positioning
   // DO NOT apply transforms to this element!
   const el = document.createElement("div");
   el.style.display = "block";
   el.style.userSelect = "none";
   el.style.pointerEvents = "auto";
-
+  
   const markerWidth = 32;
   const markerHeight = cachedPin4Svg
     ? Math.round((markerWidth * PIN4_VIEWBOX.h) / PIN4_VIEWBOX.w)
@@ -873,7 +914,7 @@ function createCustomMarkerElement() {
   pin1Layer.style.opacity = "1";
   pin1Layer.setAttribute("data-marker-layer", "default");
   pin1Layer.innerHTML = pinSvg;
-
+  
   const pin2Layer = document.createElement("div");
   pin2Layer.style.width = "100%";
   pin2Layer.style.height = "100%";
@@ -900,9 +941,9 @@ function createCustomMarkerElement() {
   el.addEventListener("mouseleave", hideHover);
   el.addEventListener("pointerleave", hideHover);
   el.addEventListener("pointercancel", hideHover);
-
+  
   el.setAttribute("data-marker", "true");
-
+  
   return el;
 }
 
@@ -965,6 +1006,11 @@ const POPUP_I18N = {
     tagsLabel: "Tags",
     submitLabel: "Hinzufügen",
     noteRequired: "Bitte Text zum Beitrag eingeben.",
+    contentRequired: "Bitte Text oder ein Bild hinzufügen.",
+    tagsRequired: "Bitte mindestens ein Tag wählen.",
+    contentHint: "Text oder Bild — mindestens eines.",
+    categoryHint: "Kategorie ist Pflicht.",
+    tagsHint: "Mindestens ein Tag wählen.",
     addPhoto: "Bild hinzufügen",
     photoSelected: "Bild ausgewählt — tippen zum Ersetzen",
     photoTooLarge: "Bild konnte nicht verkleinert werden. Bitte ein anderes Foto wählen.",
@@ -989,6 +1035,11 @@ const POPUP_I18N = {
     tagsLabel: "Tags",
     submitLabel: "Add",
     noteRequired: "Please enter note text.",
+    contentRequired: "Please add text or a picture.",
+    tagsRequired: "Please select at least one tag.",
+    contentHint: "Text or picture — at least one required.",
+    categoryHint: "Category is required.",
+    tagsHint: "Select at least one tag.",
     addPhoto: "Add a picture",
     photoSelected: "Photo added — tap to replace",
     photoTooLarge: "Could not shrink this image. Try another photo.",
@@ -1340,11 +1391,11 @@ function createPopupDivider() {
   return divider;
 }
 
-function setAddNoteFieldError(fieldError, textarea, show) {
+function setAddNoteFieldError(fieldError, textarea, show, message) {
   if (!fieldError || !textarea) return;
   const t = POPUP_I18N[currentLang] || POPUP_I18N.de;
   if (show) {
-    fieldError.textContent = t.noteRequired;
+    fieldError.textContent = message || t.contentRequired;
     fieldError.hidden = false;
     textarea.setAttribute("aria-invalid", "true");
     textarea.setAttribute("aria-describedby", "addNoteCharHint addNoteFieldError");
@@ -1355,10 +1406,67 @@ function setAddNoteFieldError(fieldError, textarea, show) {
   }
 }
 
+function setAddNoteTagsError(form, show) {
+  const bar = form?.querySelector("#addNoteTagsBar");
+  const err = form?.querySelector("#addNoteTagsError");
+  const t = POPUP_I18N[currentLang] || POPUP_I18N.de;
+  if (err) {
+    err.textContent = t.tagsRequired;
+    err.hidden = !show;
+  }
+  if (bar) bar.classList.toggle("addNoteTagsBar--invalid", !!show);
+}
+
 function bindAddNoteFieldValidation(textarea, fieldError) {
   if (!textarea || textarea.dataset.fieldValidationBound === "1") return;
   textarea.dataset.fieldValidationBound = "1";
-  textarea.addEventListener("input", () => setAddNoteFieldError(fieldError, textarea, false));
+  textarea.addEventListener("input", () => {
+    const form = textarea.closest(".addNotePopupForm");
+    const hasText = textarea.value.trim().length > 0;
+    if (hasText || pendingImageUrl) setAddNoteFieldError(fieldError, textarea, false);
+  });
+}
+
+function bindAddNoteTagsValidation(form, tagsBar) {
+  if (!tagsBar || tagsBar.dataset.tagsValidationBound === "1") return;
+  tagsBar.dataset.tagsValidationBound = "1";
+  tagsBar.addEventListener("click", () => {
+    if (getSelectedTagsFromForm(form).length > 0) setAddNoteTagsError(form, false);
+  });
+}
+
+function validateAddNoteForm(form) {
+  const t = POPUP_I18N[currentLang] || POPUP_I18N.de;
+  const textarea = form.querySelector("textarea");
+  const fieldError = form.querySelector("#addNoteFieldError");
+  const noteText = textarea?.value.trim() ?? "";
+  const hasContent = noteText.length > 0 || !!pendingImageUrl;
+  const tags = getSelectedTagsFromForm(form);
+  let ok = true;
+
+  if (!hasContent) {
+    setAddNoteFieldError(fieldError, textarea, true, t.contentRequired);
+    ok = false;
+  } else {
+    setAddNoteFieldError(fieldError, textarea, false);
+  }
+
+  if (tags.length === 0) {
+    setAddNoteTagsError(form, true);
+    ok = false;
+  } else {
+    setAddNoteTagsError(form, false);
+  }
+
+  return ok;
+}
+
+function createAddNoteFormHint(id, text) {
+  const hint = document.createElement("p");
+  hint.id = id;
+  hint.className = "addNoteFormHint";
+  hint.textContent = text;
+  return hint;
 }
 
 /** Popup body for an existing note (image, place+date, description, category). */
@@ -1537,6 +1645,12 @@ function createAddNotePhotoRow(t) {
     try {
       const dataUrl = await compressImageFileToDataUrl(file);
       pendingImageUrl = dataUrl;
+      const addForm = document.querySelector(".addNotePopupForm");
+      if (addForm) {
+        const ta = addForm.querySelector("textarea");
+        const fe = addForm.querySelector("#addNoteFieldError");
+        if (ta && fe) setAddNoteFieldError(fe, ta, false);
+      }
       preview.src = dataUrl;
       await new Promise((resolve, reject) => {
         if (preview.complete && preview.naturalWidth > 0) {
@@ -1714,6 +1828,8 @@ function createAddNotePopupContent() {
   form.className = "addNotePopupForm markerPopupBody";
   form.noValidate = true;
 
+  form.appendChild(createAddNoteFormHint("addNoteContentHint", t.contentHint));
+  form.appendChild(createPopupDivider());
   form.appendChild(createAddNotePhotoRow(t));
   form.appendChild(createPopupDivider());
 
@@ -1721,7 +1837,7 @@ function createAddNotePopupContent() {
   textBlock.className = "addNoteTextBlock";
   const textarea = document.createElement("textarea");
   textarea.placeholder = t.placeholder;
-  textarea.rows = 5;
+  textarea.rows = isMobileAddNoteViewport() ? 3 : 5;
   textarea.name = "note";
   textarea.maxLength = MAX_NOTE_CHARS;
   const fieldError = document.createElement("p");
@@ -1774,8 +1890,18 @@ function createAddNotePopupContent() {
   const labelsWrap = document.createElement("div");
   labelsWrap.className = "markerPopupLabels addNotePopupLabels";
   labelsWrap.appendChild(createAddNoteCategoryRow());
+  labelsWrap.appendChild(createAddNoteFormHint("addNoteCategoryHint", t.categoryHint));
   labelsWrap.appendChild(createPopupDivider());
-  labelsWrap.appendChild(createAddNoteTagsRow());
+  const tagsRow = createAddNoteTagsRow();
+  labelsWrap.appendChild(tagsRow);
+  labelsWrap.appendChild(createAddNoteFormHint("addNoteTagsHint", t.tagsHint));
+  const tagsError = document.createElement("p");
+  tagsError.id = "addNoteTagsError";
+  tagsError.className = "addNoteTagsError";
+  tagsError.setAttribute("role", "alert");
+  tagsError.hidden = true;
+  labelsWrap.appendChild(tagsError);
+  bindAddNoteTagsValidation(form, tagsRow.querySelector("#addNoteTagsBar"));
   form.appendChild(labelsWrap);
   form.appendChild(createPopupDivider());
 
@@ -1795,13 +1921,16 @@ function createAddNotePopupContent() {
   form.addEventListener("click", (e) => e.stopPropagation());
   form.addEventListener("submit", (e) => {
     e.preventDefault();
-    const noteText = textarea.value.trim();
-    if (!noteText) {
-      setAddNoteFieldError(fieldError, textarea, true);
-      textarea.focus();
+    if (!validateAddNoteForm(form)) {
+      if (!textarea.value.trim() && !pendingImageUrl) textarea.focus();
+      else {
+        const tagsBar = form.querySelector("#addNoteTagsBar");
+        const firstTag = tagsBar?.querySelector(".markerPopupTag");
+        if (firstTag && typeof firstTag.focus === "function") firstTag.focus();
+      }
       return;
     }
-    setAddNoteFieldError(fieldError, textarea, false);
+    const noteText = textarea.value.trim();
     const category = getSelectedCategoryFromForm(form);
     const tags = normalizeNoteTags(getSelectedTagsFromForm(form));
     if (!pendingPoint) return;
@@ -1838,8 +1967,16 @@ function updateAddNotePopupLang() {
   const submitBtn = form?.querySelector(".addNoteSubmitBtn");
   if (!textarea || !hint) return;
   const t = POPUP_I18N[currentLang] || POPUP_I18N.de;
-  if (fieldError && !fieldError.hidden) setAddNoteFieldError(fieldError, textarea, true);
-  else if (fieldError) fieldError.textContent = t.noteRequired;
+  if (fieldError && !fieldError.hidden) setAddNoteFieldError(fieldError, textarea, true, t.contentRequired);
+  else if (fieldError) fieldError.textContent = t.contentRequired;
+  const contentHint = form?.querySelector("#addNoteContentHint");
+  const categoryHint = form?.querySelector("#addNoteCategoryHint");
+  const tagsHint = form?.querySelector("#addNoteTagsHint");
+  if (contentHint) contentHint.textContent = t.contentHint;
+  if (categoryHint) categoryHint.textContent = t.categoryHint;
+  if (tagsHint) tagsHint.textContent = t.tagsHint;
+  const tagsError = form?.querySelector("#addNoteTagsError");
+  if (tagsError && !tagsError.hidden) tagsError.textContent = t.tagsRequired;
   if (categoryBar) fillAddNoteCategoryBar(categoryBar, getSelectedCategoryFromForm(form));
   if (submitBtn) submitBtn.textContent = t.submitLabel;
   textarea.placeholder = t.placeholder;
@@ -1884,7 +2021,11 @@ function updateAddNotePopupLang() {
         : t.addPhoto;
   }
   const tagsBar = form?.querySelector("#addNoteTagsBar");
-  if (tagsBar) fillAddNoteTagsBar(tagsBar, getSelectedTagsFromForm(form));
+  if (tagsBar) {
+    fillAddNoteTagsBar(tagsBar, getSelectedTagsFromForm(form));
+    delete tagsBar.dataset.tagsValidationBound;
+    bindAddNoteTagsValidation(form, tagsBar);
+  }
 }
 
 function setLanguage(lang) {
@@ -1910,6 +2051,12 @@ function setLanguage(lang) {
       lang === "de" ? (archiveOverlay?.classList.contains("open") ? "Archiv schließen" : "Archiv öffnen") : archiveOverlay?.classList.contains("open") ? "Close archive" : "Open archive"
     );
     archiveBtn.title = lang === "de" ? "Archiv" : "Archive";
+  }
+  const brandHomeBtn = /** @type {HTMLButtonElement|null} */ ($("brandHomeBtn"));
+  if (brandHomeBtn) {
+    const homeLabel = lang === "de" ? "Zurück zur Karte" : "Back to map";
+    brandHomeBtn.setAttribute("aria-label", homeLabel);
+    brandHomeBtn.title = homeLabel;
   }
   let seedTextChanged = false;
   notes.forEach((n) => {
@@ -2017,7 +2164,8 @@ function stopAddNoteViewportWatch() {
 function bindAddNoteMobileMapGuard(textarea) {
   if (!textarea || textarea.dataset.mobileMapGuardBound === "1" || !isMobileAddNoteViewport()) return;
   textarea.dataset.mobileMapGuardBound = "1";
-  textarea.style.setProperty("font-size", "17px", "important");
+  textarea.style.setProperty("font-size", "14px", "important");
+  textarea.style.setProperty("line-height", "1.5", "important");
   textarea.addEventListener("blur", () => {
     window.setTimeout(() => {
       const active = document.activeElement;
@@ -2120,6 +2268,7 @@ function openAddNotePopup(lngLat) {
 
   if (isMobileAddNoteViewport()) {
     openAddNoteMobileSheet(center, content);
+    syncActiveMarkerEmphasis();
     return;
   }
 
@@ -2134,6 +2283,7 @@ function openAddNotePopup(lngLat) {
     .setDOMContent(content)
     .addTo(map);
   flyMapToPlacePin(center, { zoom: map.getZoom() });
+  syncActiveMarkerEmphasis();
   addNotePopup.on("close", () => {
     closeAddNotePopup();
   });
@@ -2142,9 +2292,9 @@ function openAddNotePopup(lngLat) {
       requestAnimationFrame(() => {
         const ta = content.querySelector("textarea");
         if (!ta) return;
-        ta.value = "";
-        ta.focus();
-        ta.setSelectionRange(0, 0);
+          ta.value = "";
+          ta.focus();
+          ta.setSelectionRange(0, 0);
       });
     });
   });
@@ -2161,12 +2311,17 @@ function closeAddNotePopup(options = {}) {
 
   const finalizeClose = () => {
     unlockMapLayoutForAddNote();
-    if (pendingSubmitMarker) {
-      pendingSubmitMarker.remove();
-      pendingSubmitMarker = null;
+  if (pendingSubmitMarker) {
+    pendingSubmitMarker.remove();
+    pendingSubmitMarker = null;
+  }
+  pendingPoint = null;
+    if (options.skipRestore) {
+      addNoteSavedMapView = null;
+    } else {
+      scheduleRestoreAddNoteMapView();
     }
-    pendingPoint = null;
-    scheduleRestoreAddNoteMapView();
+    clearAllMarkerEmphasis();
     window.setTimeout(refreshMapLayoutAfterAddNote, 400);
     options.onClosed?.();
   };
@@ -2191,13 +2346,14 @@ function closeAddNotePopup(options = {}) {
  * @param {string[]} [tags]
  */
 function submitNote(noteText, buttonEl, category = DEFAULT_NOTE_CATEGORY, tags = []) {
-  if (!noteText || !pendingPoint) return;
+  const text = (noteText || "").trim();
+  if ((!text && !pendingImageUrl) || !pendingPoint) return;
   if (buttonEl) buttonEl.disabled = true;
   setStatus("");
   const applyItem = (item) => {
     notes.unshift(item);
     try {
-      saveNotes();
+    saveNotes();
     } catch {
       if (buttonEl) buttonEl.disabled = false;
       setStatus(currentLang === "de" ? "Speichern fehlgeschlagen (Speicher voll?)." : "Could not save (storage full?).");
@@ -2220,30 +2376,32 @@ function submitNote(noteText, buttonEl, category = DEFAULT_NOTE_CATEGORY, tags =
     }
     document.activeElement && document.activeElement.blur && document.activeElement.blur();
     closeAddNotePopup({
+      skipRestore: true,
       onClosed: () => {
         if (!map) return;
         openOrToggleMarkerPopup(item.id);
       },
     });
   };
-  const imageUrl = pendingImageUrl || pickRandomArchiveImageUrl();
+  const imageUrl = pendingImageUrl || null;
   const noteCategory = normalizeNoteCategory(category);
   const noteTags = normalizeNoteTags(tags);
   applyItem({
-    id: makeId(),
-    note: noteText,
-    lng: pendingPoint.lng,
-    lat: pendingPoint.lat,
-    createdAt: Date.now(),
+        id: makeId(),
+        note: text,
+        lng: pendingPoint.lng,
+        lat: pendingPoint.lat,
+        createdAt: Date.now(),
     category: noteCategory,
     tags: noteTags,
     ...(imageUrl ? { imageUrl } : {}),
   });
-  if (buttonEl) buttonEl.disabled = false;
+    if (buttonEl) buttonEl.disabled = false;
 }
 
 const GAP_ABOVE_MARKER = 80; // gap between popup tip and top of marker (popup above marker)
 const MARKER_OFFSET_BELOW_CENTER = 200; // when centering on marker, place marker this many px below visual center
+const ADD_NOTE_PIN_GAP_ABOVE_SHEET = 16; // mobile: pin tip sits this far above the form top edge
 const PANEL_SLIDE_MS = 220;
 
 /** Pixel offset for flyMapToPlacePin: pin appears this far below map center (negative = above center). */
@@ -2255,8 +2413,8 @@ function getAddNotePlacementOffsetPx() {
   const mapH = map.getContainer().clientHeight;
   const sheetH = addNoteMobileSheetEl.getBoundingClientRect().height;
   if (mapH <= 0 || sheetH <= 0) return MARKER_OFFSET_BELOW_CENTER;
-  const visibleCenterY = (mapH - sheetH) / 2;
-  return visibleCenterY - mapH / 2;
+  // Pin just above the sheet: screen Y ≈ mapH - sheetH - gap → offset from map vertical center
+  return mapH / 2 - sheetH - ADD_NOTE_PIN_GAP_ABOVE_SHEET;
 }
 
 function flyMapToPlacePinForAddNote(lngLat, options = {}) {
@@ -2403,6 +2561,7 @@ function openOrToggleMarkerPopup(noteId, options = {}) {
     if (openMarkerPopup) openMarkerPopup.remove();
     openMarkerPopup = null;
     openMarkerPopupId = null;
+    clearAllMarkerEmphasis();
     return;
   }
   if (openMarkerPopup) openMarkerPopup.remove();
@@ -2422,14 +2581,17 @@ function openOrToggleMarkerPopup(noteId, options = {}) {
   popup.on("close", () => {
     openMarkerPopup = null;
     openMarkerPopupId = null;
+    clearAllMarkerEmphasis();
   });
   popup.on("open", () => {
     scheduleCenterPopupInMapView(popup);
     map.once("moveend", () => scheduleCenterPopupInMapView(popup));
     bindPopupRecenterOnImageLoad(popup, content);
+    syncActiveMarkerEmphasis();
   });
   openMarkerPopup = popup;
   openMarkerPopupId = noteId;
+  syncActiveMarkerEmphasis();
 }
 
 function addMarker(note) {
@@ -2507,7 +2669,9 @@ function initMap() {
   const majorStreetColor = "#fd78b8";
   const MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/bright";
 
-  setStatus("Loading map…");
+  setStatus(currentLang === "de" ? "Karte wird geladen…" : "Loading map…", {
+    variant: "mapUi",
+  });
   const leipzigViewBounds = getLeipzigViewBounds();
   const leipzigViewCenter = getLeipzigViewCenter(leipzigViewBounds);
 
@@ -2542,6 +2706,7 @@ function initMap() {
     lockMapPitch();
     setMapThemedVisible(true);
     mapShown = true;
+    setStatus("");
   }
 
   function restoreMarkersOnMap() {
@@ -2576,6 +2741,16 @@ function initMap() {
     showMapWhenStyled();
     restoreMarkersOnMap();
   }, 2500);
+
+  setTimeout(() => {
+    if (mapShown) return;
+    setStatus(
+      currentLang === "de"
+        ? "Karte lädt nicht. Internet nötig (unpkg.com + Karten-Tiles). Simulator: Safari erlauben, dann neu laden."
+        : "Map not loading. Internet required (unpkg.com + map tiles). In Simulator: allow Safari network, then reload.",
+      { variant: "mapUi" },
+    );
+  }, 20000);
 
   map.on("error", (e) => {
     const msg =
@@ -2761,7 +2936,7 @@ function initMap() {
     } catch (error) {
       console.error("Error applying map theme:", error);
     }
-    updateMarkerPinColors();
+      updateMarkerPinColors();
     updateLeipzigMaskTheme();
     if (map.isStyleLoaded && map.isStyleLoaded()) {
       setMapThemedVisible(true);
@@ -2853,6 +3028,8 @@ function initMap() {
         .setLngLat([pendingPoint.lng, pendingPoint.lat])
         .addTo(map);
       if (updateMarkerPinColorsFn) updateMarkerPinColorsFn();
+      setMarkerHoverLayers(normalEl, true);
+      bringMarkerWrapperToFront(normalEl);
       openAddNotePopup([pendingPoint.lng, pendingPoint.lat]);
       return;
     }
@@ -2861,7 +3038,7 @@ function initMap() {
     closeMarkerPopupIfOpen();
     if (!isInsideLeipzig(e.lngLat)) {
       const t = POPUP_I18N[currentLang] || POPUP_I18N.de;
-      setStatus(t.outsideCity);
+      setStatus(t.outsideCity, { variant: "mapUi", autoDismiss: true });
       return;
     }
     setStatus("");
@@ -2880,12 +3057,32 @@ function initMap() {
   });
 }
 
+function goToFrontPage() {
+  closeImageLightbox();
+  closeAddNotePopup();
+  closeMenu();
+  closeArchive();
+  if (window.location.hash) {
+    history.replaceState(null, "", window.location.pathname + window.location.search);
+  }
+  if (map) {
+    const bounds = getLeipzigViewBounds();
+    map.flyTo({
+      center: getLeipzigViewCenter(bounds),
+      zoom: 11.2,
+      pitch: 0,
+      duration: 900,
+    });
+    window.setTimeout(() => map.resize(), 120);
+  }
+}
+
 function closeMenu() {
   if (!menuOverlay || !hamburgerBtn) return;
-  menuOverlay.classList.remove("open");
-  menuOverlay.setAttribute("aria-hidden", "true");
-  hamburgerBtn.classList.remove("menuOpen");
-  hamburgerBtn.setAttribute("aria-label", currentLang === "de" ? "Menü öffnen" : "Open menu");
+    menuOverlay.classList.remove("open");
+    menuOverlay.setAttribute("aria-hidden", "true");
+    hamburgerBtn.classList.remove("menuOpen");
+    hamburgerBtn.setAttribute("aria-label", currentLang === "de" ? "Menü öffnen" : "Open menu");
   releaseMapControlButton(hamburgerBtn);
   menuActiveSectionId = null;
 }
@@ -2951,6 +3148,11 @@ function setArchiveDetailOpen(open) {
 
 function closeArchiveDetailPanel() {
   if (!archiveOverlay?.classList.contains("archiveOverlay--detailOpen")) return;
+  const pane = document.querySelector(".archivePane--detail");
+  if (pane) {
+    pane.style.transform = "";
+    pane.classList.remove("archivePane--detail--dragging");
+  }
   setArchiveDetailOpen(false);
 }
 
@@ -2989,8 +3191,8 @@ function bindArchiveDetailSwipeBack() {
         if (Math.abs(dx) < 10) return;
         if (Math.abs(dy) > Math.abs(dx)) {
           active = false;
-          return;
-        }
+    return;
+  }
         dragging = true;
         pane.classList.add("archivePane--detail--dragging");
       }
@@ -3274,7 +3476,7 @@ function renderArchiveList() {
     });
     showArchiveDetail(note || null);
     setArchiveDetailOpen(false);
-  } else {
+      } else {
     selectArchiveEntry(selectId);
   }
 }
@@ -3295,10 +3497,23 @@ function toggleArchive() {
 }
 
 function initApp() {
+  window.__RECHTS_APP_STARTED = true;
+  if (window.__RECHTS_BOOT_TIMER) {
+    clearTimeout(window.__RECHTS_BOOT_TIMER);
+  }
+
   hamburgerBtn = /** @type {HTMLButtonElement|null} */ ($("hamburgerBtn"));
   archiveBtn = /** @type {HTMLButtonElement|null} */ ($("archiveBtn"));
   menuOverlay = $("menuOverlay");
   archiveOverlay = $("archiveOverlay");
+
+  const brandHomeBtn = /** @type {HTMLButtonElement|null} */ ($("brandHomeBtn"));
+  if (brandHomeBtn) {
+    brandHomeBtn.addEventListener("click", () => {
+      goToFrontPage();
+      releaseMapControlButton(brandHomeBtn);
+    });
+  }
 
   try {
     const saved = localStorage.getItem(LANG_STORAGE_KEY);
