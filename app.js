@@ -645,6 +645,83 @@ function pickRandomTagsForSeed(index) {
   return order.slice(0, count).map((i) => NOTE_TAGS[i].id);
 }
 
+function distanceMeters(lng1, lat1, lng2, lat2) {
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/** Nearest known Leipzig label from seed/demo pins (offline fallback). */
+function guessPlaceNameFromNearbySeeds(lng, lat) {
+  /** @type {{ lng: number, lat: number, name: string }[]} */
+  const refs = [];
+  const add = (lngR, latR, name) => {
+    const label = (name || "").trim();
+    if (label) refs.push({ lng: lngR, lat: latR, name: label });
+  };
+  SEED_NOTES.forEach((s) => add(s.lng, s.lat, s.note));
+  RANDOM_SEED_NOTES.forEach((s) => add(s.lng, s.lat, s.note));
+  notes.forEach((n) => add(n.lng, n.lat, n.placeName));
+  let bestName = null;
+  let bestD = Infinity;
+  for (const r of refs) {
+    const d = distanceMeters(lng, lat, r.lng, r.lat);
+    if (d < bestD) {
+      bestD = d;
+      bestName = r.name;
+    }
+  }
+  if (bestName && bestD <= 2500) return bestName;
+  return null;
+}
+
+function pickAddressPlaceName(address) {
+  if (!address || typeof address !== "object") return null;
+  return (
+    address.suburb ||
+    address.neighbourhood ||
+    address.city_district ||
+    address.quarter ||
+    address.village ||
+    address.hamlet ||
+    address.road ||
+    null
+  );
+}
+
+async function reverseGeocodePlaceName(lng, lat) {
+  const url = new URL("https://nominatim.openstreetmap.org/reverse");
+  url.searchParams.set("lat", String(lat));
+  url.searchParams.set("lon", String(lng));
+  url.searchParams.set("format", "jsonv2");
+  url.searchParams.set("zoom", "17");
+  url.searchParams.set("addressdetails", "1");
+  const res = await fetch(url.toString(), {
+    headers: {
+      Accept: "application/json",
+      "Accept-Language": currentLang === "de" ? "de" : "en",
+    },
+  });
+  if (!res.ok) throw new Error(`reverse geocode ${res.status}`);
+  const data = await res.json();
+  return pickAddressPlaceName(data.address);
+}
+
+async function resolvePlaceNameForPoint(lng, lat) {
+  const near = guessPlaceNameFromNearbySeeds(lng, lat);
+  try {
+    const geo = await reverseGeocodePlaceName(lng, lat);
+    if (geo) return geo;
+  } catch (err) {
+    console.warn("Place lookup failed, using nearby label:", err);
+  }
+  return near || "Leipzig";
+}
+
 function formatNotePlaceName(note) {
   const place = (note.placeName || "").trim();
   if (place) return place;
@@ -694,6 +771,19 @@ function ensureNotePlaceAndText() {
     } else if (n.placeName && SEED_PLACE_NAMES.has(n.placeName) && (!t || t === n.placeName)) {
       n.note = seedNoteDescription(n.placeName, currentLang);
       changed = true;
+    }
+    if (
+      !n.placeName &&
+      typeof n.lng === "number" &&
+      typeof n.lat === "number" &&
+      !Number.isNaN(n.lng) &&
+      !Number.isNaN(n.lat)
+    ) {
+      const guessed = guessPlaceNameFromNearbySeeds(n.lng, n.lat);
+      if (guessed) {
+        n.placeName = guessed;
+        changed = true;
+      }
     }
     const tags = normalizeNoteTags(n.tags);
     const isSeed =
@@ -1005,7 +1095,6 @@ const POPUP_I18N = {
     categoryLabel: "Kategorie",
     tagsLabel: "Tags",
     submitLabel: "Hinzufügen",
-    noteRequired: "Bitte Text zum Beitrag eingeben.",
     contentRequired: "Bitte Text oder ein Bild hinzufügen.",
     tagsRequired: "Bitte mindestens ein Tag wählen.",
     contentHint: "Text oder Bild — mindestens eines.",
@@ -1034,7 +1123,6 @@ const POPUP_I18N = {
     categoryLabel: "Category",
     tagsLabel: "Tags",
     submitLabel: "Add",
-    noteRequired: "Please enter note text.",
     contentRequired: "Please add text or a picture.",
     tagsRequired: "Please select at least one tag.",
     contentHint: "Text or picture — at least one required.",
@@ -2345,11 +2433,18 @@ function closeAddNotePopup(options = {}) {
  * @param {string} [category]
  * @param {string[]} [tags]
  */
-function submitNote(noteText, buttonEl, category = DEFAULT_NOTE_CATEGORY, tags = []) {
+async function submitNote(noteText, buttonEl, category = DEFAULT_NOTE_CATEGORY, tags = []) {
   const text = (noteText || "").trim();
   if ((!text && !pendingImageUrl) || !pendingPoint) return;
   if (buttonEl) buttonEl.disabled = true;
   setStatus("");
+  const { lng, lat } = pendingPoint;
+  let placeName = guessPlaceNameFromNearbySeeds(lng, lat) || "Leipzig";
+  try {
+    placeName = await resolvePlaceNameForPoint(lng, lat);
+  } catch (_) {
+    /* keep seed fallback */
+  }
   const applyItem = (item) => {
     notes.unshift(item);
     try {
@@ -2389,8 +2484,9 @@ function submitNote(noteText, buttonEl, category = DEFAULT_NOTE_CATEGORY, tags =
   applyItem({
         id: makeId(),
         note: text,
-        lng: pendingPoint.lng,
-        lat: pendingPoint.lat,
+        placeName,
+        lng,
+        lat,
         createdAt: Date.now(),
     category: noteCategory,
     tags: noteTags,
@@ -3407,7 +3503,7 @@ function renderArchiveList() {
       return false;
     });
   }
-  const sorted = [...filtered].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  const sorted = [...filtered].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   if (!sorted.length) {
     selectedArchiveNoteId = null;
     showArchiveDetail(null);
@@ -3445,6 +3541,11 @@ function renderArchiveList() {
     bindImageFallback(img);
     row.appendChild(img);
 
+    const what = document.createElement("span");
+    what.className = "archiveEntryWhat";
+    what.textContent = note.note || "—";
+    row.appendChild(what);
+
     const category = document.createElement("span");
     category.className = "archiveEntryCategory";
     category.textContent = getCategoryLabel(note.category);
@@ -3459,11 +3560,6 @@ function renderArchiveList() {
     where.className = "archiveEntryWhere";
     where.textContent = formatNotePlaceName(note);
     row.appendChild(where);
-
-    const what = document.createElement("span");
-    what.className = "archiveEntryWhat";
-    what.textContent = note.note || "—";
-    row.appendChild(what);
 
     row.addEventListener("click", () => selectArchiveEntry(note.id));
     list.appendChild(row);

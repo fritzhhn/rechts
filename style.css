@@ -880,7 +880,7 @@ body:has(.archiveOverlay.open) .topHeaderBar {
 
 .archiveEntry {
   display: grid;
-  grid-template-columns: 44px 1.15fr 0.95fr 0.9fr 1fr;
+  grid-template-columns: 44px minmax(0, 1.35fr) minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 0.85fr);
   column-gap: 14px;
   align-items: center;
   justify-items: center;
@@ -1163,14 +1163,12 @@ body:has(.archiveOverlay.open) .topHeaderBar {
 
 .brandCenter strong,
 .brandCenterBtn strong {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
   height: 100%;
   margin: 0;
   padding: 0;
   font-size: clamp(11px, 2.8vw + 0.45rem, 32px);
-  line-height: 1.1;
+  line-height: var(--map-ui-btn-size);
   font-weight: bold;
   color: rgb(250, 52, 147);
   white-space: nowrap;
@@ -1954,19 +1952,16 @@ body.imageLightboxOpen {
   }
 
   .archiveEntry {
-    grid-template-columns: 36px 1fr 0.95fr 1.1fr;
-    column-gap: 8px;
+    grid-template-columns: 32px minmax(0, 1fr) minmax(0, 0.8fr) minmax(0, 0.85fr) minmax(0, 0.75fr);
+    column-gap: 6px;
     padding: 2px 8px;
     align-items: center;
   }
 
-  .archiveEntryWhat {
-    display: none;
-  }
-
   .archiveEntryCategory,
   .archiveEntryWhere,
-  .archiveEntryWhen {
+  .archiveEntryWhen,
+  .archiveEntryWhat {
     font-size: 10px;
     line-height: 1.2;
     display: -webkit-box;
