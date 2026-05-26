@@ -149,17 +149,31 @@ body.add-note-lock-layout .map-wrapper {
   z-index: 1100;
   display: flex;
   flex-direction: column;
-  max-height: min(88dvh, 94%);
+  max-height: min(92dvh, 96%);
   overflow: hidden;
   touch-action: auto;
   background: var(--map-ui-btn-bg);
   border-radius: var(--map-ui-radius) var(--map-ui-radius) 0 0;
   box-shadow: 0 -6px 28px rgba(0, 0, 0, 0.18);
-  padding: 8px 10px calc(14px + env(safe-area-inset-bottom, 0px));
+  padding: 0 10px max(10px, env(safe-area-inset-bottom, 0px));
   box-sizing: border-box;
-  transform: translateY(100%);
+  transform: translate3d(0, 100%, 0);
   transition: transform 0.22s ease;
   visibility: hidden;
+  pointer-events: none;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+/* Cover iOS Safari hairline between fixed sheet and viewport bottom */
+.addNoteMobileSheet::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  height: 3px;
+  background: var(--map-ui-btn-bg);
   pointer-events: none;
 }
 
@@ -169,53 +183,51 @@ body.add-note-lock-layout .map-wrapper {
 }
 
 .addNoteMobileSheet.addNoteMobileSheet--open {
-  transform: translateY(0);
+  transform: translate3d(0, 0, 0);
 }
 
 .addNoteMobileSheet[hidden] {
   display: none !important;
 }
 
-/* Mobile sheet: fit on screen without scrolling; Add button pinned at bottom */
+/* Mobile sheet: form scrolls so Add stays reachable with long content + photo */
 .addNoteMobileSheet .addNotePopupForm {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   width: 100%;
 }
 
-.addNoteMobileSheet .addNotePopupForm > .markerPopupDivider,
-.addNoteMobileSheet .addNotePopupForm .markerPopupLabels .markerPopupDivider {
-  margin: 3px auto;
+.addNoteMobileSheet .addNoteBlock > .markerPopupDivider {
+  margin: 0 auto;
 }
 
 .addNoteMobileSheet .addNoteFormHint {
-  margin: 2px 0 0;
+  margin: 0;
   font-size: 9px;
   line-height: 1.25;
 }
 
-.addNoteMobileSheet .addNotePhotoPreviewViewport {
-  height: 88px;
-  min-height: 88px;
-  max-height: 88px;
-  margin: 4px auto 0;
+.addNoteMobileSheet .addNoteBlock--photo .addNotePhotoPreviewViewport {
+  height: 200px;
+  min-height: 200px;
+  max-height: 200px;
+  margin: 0;
 }
 
-.addNoteMobileSheet .addNotePhotoRow:has(.addNotePhotoPreviewViewport[hidden]) .addNotePhotoLabel {
-  margin: 4px auto 0;
-  padding: 8px 10px;
+
+.addNoteMobileSheet .addNoteTextBlock {
+  flex-shrink: 0;
 }
 
 .addNoteMobileSheet .addNoteTextBlock textarea {
   min-height: 52px;
-  max-height: 72px;
+  max-height: 120px;
+  overflow-y: auto;
   resize: none;
-}
-
-.addNoteMobileSheet .addNotePopupLabels {
-  padding: 2px 0 4px;
-  gap: 4px;
 }
 
 .addNoteMobileSheet .markerPopupTag {
@@ -223,19 +235,9 @@ body.add-note-lock-layout .map-wrapper {
   padding: 3px 5px;
 }
 
-.addNoteMobileSheet .addNoteConsentHint {
+.addNoteMobileSheet .addNoteBlock--consent .addNoteConsentHint {
   font-size: 10px;
   line-height: 1.3;
-  margin: 2px auto 4px;
-}
-
-.addNoteMobileSheet .addNoteSubmitRow {
-  flex-shrink: 0;
-  margin-top: auto;
-  margin-bottom: 0;
-  padding-top: 6px;
-  width: 100%;
-  max-width: 100%;
 }
 
 .addNoteMobileSheet .addNoteSubmitBtn {
@@ -244,14 +246,8 @@ body.add-note-lock-layout .map-wrapper {
   box-sizing: border-box;
 }
 
-/* Mobile: note field matches saved entry (.markerPopupText). iOS zoom blocked via maximum-scale=1 in index.html. */
+/* Mobile: iOS zoom blocked via maximum-scale=1 in index.html. */
 @media (max-width: 600px), (pointer: coarse) {
-  .addNotePopupForm textarea {
-    font-size: 14px;
-    line-height: 1.5;
-    font-weight: 400;
-  }
-
   .addNotePopupForm .addNoteSubmitBtn,
   .addNotePopupForm .addNotePhotoLabel {
     font-size: 17px;
@@ -437,6 +433,19 @@ body:has(.archiveOverlay.open) .topHeaderBar {
   display: flex;
   flex-direction: column;
   gap: var(--map-ui-btn-gap);
+}
+
+/* Full-screen menu/archive on phones: panel covers map; keep hamburger/archive above overlay */
+@media (max-width: 600px), (pointer: coarse) {
+  .menuOverlay,
+  .archiveOverlay {
+    --menu-top: env(safe-area-inset-top, 0);
+  }
+
+  .leftControls:has(.hamburgerBtn.menuOpen),
+  .leftControls:has(.archiveBtn.archiveOpen) {
+    z-index: calc(var(--z-map-overlay) + 1);
+  }
 }
 
 .leftControlsTopRow {
@@ -1248,6 +1257,8 @@ body:has(.archiveOverlay.open) .topHeaderBar {
 .markerPopupBody,
 .addNotePopupForm {
   --popup-media-width: 300px;
+  /* Vertical padding per block; horizontal inset = 2 × gap (see .addNoteBlockInner) */
+  --add-note-gap: 10px;
   font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.5;
@@ -1333,18 +1344,20 @@ body.imageLightboxOpen {
 }
 
 .addNotePopupForm .addNotePhotoPreviewViewport {
-  width: var(--popup-media-width);
-  max-width: calc(100% - 20px);
-  height: 220px;
-  min-height: 220px;
-  max-height: 220px;
-  margin: 10px auto 0;
+  width: 100%;
+  max-width: none;
+  height: 300px;
+  min-height: 300px;
+  max-height: 300px;
+  margin: 0;
   flex-shrink: 0;
   background: transparent;
   align-self: center;
   box-shadow: none;
   border-bottom: none;
   position: relative;
+  overflow: hidden;
+  contain: layout paint;
 }
 
 .addNotePopupForm .addNotePhotoPreviewViewport[hidden] {
@@ -1400,11 +1413,8 @@ body.imageLightboxOpen {
   pointer-events: none;
 }
 
-.addNotePopupForm .addNotePhotoPreviewViewport:not([hidden]) {
-  order: -1;
-}
-
 .addNotePopupForm .addNotePhotoPreviewViewport:not([hidden]) .addNotePhotoPreview {
+  display: block;
   width: 100%;
   height: 100%;
   max-width: none;
@@ -1421,8 +1431,7 @@ body.imageLightboxOpen {
   pointer-events: none;
 }
 
-.markerPopupCopy,
-.addNotePopupForm .addNoteTextBlock {
+.markerPopupCopy {
   width: var(--popup-media-width);
   max-width: calc(100% - 20px);
   margin: 0 auto;
@@ -1459,9 +1468,82 @@ body.imageLightboxOpen {
   border-bottom: none;
 }
 
+/* Add-note form: one block per step, shared padding and dividers */
+.addNoteBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.addNoteBlock--photo {
+  overflow: hidden;
+}
+
+.addNoteBlockInner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: var(--popup-media-width);
+  max-width: calc(100% - 2 * var(--add-note-gap));
+  margin: 0 auto;
+  padding: var(--add-note-gap) 0;
+  box-sizing: border-box;
+}
+
+.addNoteBlock--photo .addNoteBlockInner {
+  gap: 6px;
+}
+
+.addNoteBlock > .markerPopupDivider {
+  margin: 0 auto;
+  flex-shrink: 0;
+}
+
+.addNoteBlockInner > .addNoteFormHint {
+  margin: 0;
+  width: 100%;
+}
+
+.addNoteBlock--photo:not(:has(.addNotePhotoPreviewViewport:not([hidden]))) .addNoteBlockInner {
+  gap: 0;
+  justify-content: center;
+  /* Taller tap target; slight nudge down (2× previous vertical padding) */
+  padding-top: calc((var(--add-note-gap) + 2px) * 2);
+  padding-bottom: calc(max(0px, var(--add-note-gap) - 2px) * 2);
+}
+
+.addNoteBlock--photo:not(:has(.addNotePhotoPreviewViewport:not([hidden]))) .addNotePhotoRow {
+  gap: 0;
+}
+
+.addNoteBlock--photo:not(:has(.addNotePhotoPreviewViewport:not([hidden]))) .addNotePhotoLabel {
+  display: block;
+  line-height: 1;
+  text-align: center;
+}
+
+.addNoteBlock--photo:not(:has(.addNotePhotoPreviewViewport:not([hidden]))) .addNotePhotoLabelText {
+  display: inline-block;
+  line-height: 1;
+}
+
+.addNoteBlock--photo:not(:has(.addNotePhotoPreviewViewport:not([hidden]))) .addNotePhotoReplaceHint {
+  display: none;
+}
+
 .addNotePopupForm .addNoteTextBlock {
-  padding-top: 10px;
-  padding-bottom: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 .markerPopupDivider {
@@ -1478,14 +1560,10 @@ body.imageLightboxOpen {
   align-self: center;
 }
 
-.addNotePopupForm > .markerPopupDivider {
-  margin: 6px auto;
-}
-
 .markerPopupLabels .markerPopupDivider {
   width: 100%;
   max-width: none;
-  margin: 4px auto;
+  margin: 0 auto;
 }
 
 .markerPopupLabels,
@@ -1500,11 +1578,6 @@ body.imageLightboxOpen {
   width: var(--popup-media-width);
   max-width: calc(100% - 20px);
   box-sizing: border-box;
-}
-
-.addNotePopupForm .addNotePopupLabels {
-  padding-top: 2px;
-  padding-bottom: 6px;
 }
 
 .markerPopupCategoryRow,
@@ -1549,10 +1622,14 @@ body.imageLightboxOpen {
   outline: none;
 }
 
-.addNotePopupForm .addNoteTextBlock {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
+.addNoteBlock--photo .addNotePhotoRow {
+  width: 100%;
+}
+
+.addNotePhotoRow .addNotePhotoReplaceHint {
+  margin: 0;
+  width: 100%;
+  max-width: var(--popup-media-width);
 }
 
 .addNotePopupForm .addNotePhotoRow {
@@ -1563,12 +1640,19 @@ body.imageLightboxOpen {
   gap: 6px;
   min-width: 0;
   width: 100%;
+  flex-shrink: 0;
+  overflow: hidden;
+  contain: layout paint;
+}
+
+.addNotePopupForm .addNotePhotoRow--hasPreview {
+  gap: 6px;
 }
 
 .addNotePopupForm .addNotePhotoLabel {
-  width: var(--popup-media-width);
-  max-width: calc(100% - 20px);
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
   padding: 0;
   border: none;
   background: transparent;
@@ -1588,9 +1672,8 @@ body.imageLightboxOpen {
 .addNotePopupForm .addNotePhotoRow:has(.addNotePhotoPreviewViewport[hidden]) .addNotePhotoLabel {
   position: relative;
   height: auto;
-  min-height: 40px;
-  margin: 10px auto 0;
-  padding: 10px 12px;
+  margin: 0 auto;
+  padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1599,10 +1682,11 @@ body.imageLightboxOpen {
 }
 
 .addNotePopupForm .addNotePhotoRow:has(.addNotePhotoPreviewViewport:not([hidden])) .addNotePhotoLabel {
-  min-height: 0;
-  margin: 6px auto 0;
-  padding: 6px 10px;
-  font-size: 11px;
+  display: none;
+}
+
+.addNotePopupForm .addNotePhotoPreviewViewport.inlineZoomViewport:not([hidden]) {
+  cursor: var(--cursor-pointer);
 }
 
 .addNoteCategoryBar,
@@ -1659,11 +1743,10 @@ body.imageLightboxOpen {
   outline-offset: 2px;
 }
 
-.addNotePopupForm > .addNoteConsentHint {
+.addNoteBlock--consent .addNoteConsentHint {
   display: block;
-  width: var(--popup-media-width);
-  max-width: calc(100% - 20px);
-  margin: 4px auto 8px;
+  width: 100%;
+  margin: 0;
   padding: 0;
   box-sizing: border-box;
   font-size: 12px;
@@ -1671,7 +1754,6 @@ body.imageLightboxOpen {
   opacity: 1;
   line-height: 1.45;
   text-align: center;
-  align-self: center;
 }
 
 .addNoteConsentHint {
@@ -1698,9 +1780,10 @@ body.imageLightboxOpen {
   border: none;
   border-radius: 0;
   font-family: var(--font-sans);
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1.5;
-  text-align: left;
+  font-weight: 400;
+  text-align: center;
   color: #000;
   background: transparent;
   resize: vertical;
@@ -1751,6 +1834,10 @@ body.imageLightboxOpen {
   display: none;
 }
 
+.addNotePopupForm .addNoteFormHint--invalid {
+  color: var(--brand-pink);
+}
+
 .addNotePopupForm .addNoteTagsError {
   margin: 6px auto 0;
   padding: 4px 6px;
@@ -1781,15 +1868,12 @@ body.imageLightboxOpen {
   outline-offset: 2px;
 }
 
-.addNotePopupForm .addNoteSubmitRow {
-  display: block;
-  width: var(--popup-media-width);
-  max-width: calc(100% - 20px);
-  margin: 0 auto 12px;
-  align-self: center;
+.addNoteBlock--category .markerPopupCategoryRow,
+.addNoteBlock--tags .markerPopupTagsRow {
+  width: 100%;
 }
 
-.addNotePopupForm .addNoteSubmitBtn {
+.addNoteBlock--submit .addNoteSubmitBtn {
   display: block;
   width: 100%;
   box-sizing: border-box;

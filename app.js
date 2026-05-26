@@ -383,6 +383,8 @@ let addNoteMobileSheetEl = null;
 let addNoteSavedMapView = null;
 /** @type {(() => void)|null} */
 let addNoteVisualViewportHandler = null;
+/** Desktop: block ResizeObserver recenter until fly + initial centerPopup finish. */
+let addNoteInitialMapPlacementDone = false;
 /** @type {maplibregl.Popup|null} */
 let openMarkerPopup = null;
 /** @type {string|null} */
@@ -1086,11 +1088,12 @@ const POPUP_I18N = {
     categoryHint: "Kategorie ist Pflicht.",
     tagsHint: "Mindestens ein Tag wählen.",
     addPhoto: "Bild hinzufügen",
-    photoSelected: "Bild ausgewählt — tippen zum Ersetzen",
+    photoReplaceHint: "Nochmal tippen für ein anderes Bild.",
     photoTooLarge: "Bild konnte nicht verkleinert werden. Bitte ein anderes Foto wählen.",
     photoReadError: "Bild konnte nicht gelesen werden.",
     photoLoading: "Bild wird vorbereitet…",
     zoomImage: "Bild zoomen (Trackpad oder Pinch)",
+    replacePhotoAria: "Tippen, um ein anderes Foto zu wählen",
     outsideCity: "Beiträge können nur innerhalb der Leipziger Stadtgrenze gesetzt werden.",
   },
   en: {
@@ -1114,11 +1117,12 @@ const POPUP_I18N = {
     categoryHint: "Category is required.",
     tagsHint: "Select at least one tag.",
     addPhoto: "Add a picture",
-    photoSelected: "Photo added — tap to replace",
+    photoReplaceHint: "Tap again to choose a different photo.",
     photoTooLarge: "Could not shrink this image. Try another photo.",
     photoReadError: "Could not read image.",
     photoLoading: "Preparing image…",
     zoomImage: "Zoom image (trackpad or pinch)",
+    replacePhotoAria: "Tap to choose a different photo",
     outsideCity: "Notes can only be placed inside the Leipzig city boundary.",
   },
 };
@@ -1467,6 +1471,7 @@ function createPopupDivider() {
 function setAddNoteFieldError(fieldError, textarea, show, message) {
   if (!fieldError || !textarea) return;
   const t = POPUP_I18N[currentLang] || POPUP_I18N.de;
+  const wasHidden = fieldError.hidden;
   if (show) {
     fieldError.textContent = message || t.contentRequired;
     fieldError.hidden = false;
@@ -1477,17 +1482,43 @@ function setAddNoteFieldError(fieldError, textarea, show, message) {
     textarea.removeAttribute("aria-invalid");
     textarea.setAttribute("aria-describedby", "addNoteCharHint");
   }
+  if (wasHidden !== fieldError.hidden) notifyAddNoteFormLayoutChanged({ force: true });
+}
+
+function setAddNoteFormHintState(hintEl, showInvalid) {
+  if (!hintEl) return;
+  const wasHidden = hintEl.hidden;
+  hintEl.hidden = !showInvalid;
+  hintEl.classList.toggle("addNoteFormHint--invalid", !!showInvalid);
+  if (showInvalid) hintEl.setAttribute("role", "alert");
+  else hintEl.removeAttribute("role");
+  if (wasHidden !== hintEl.hidden) notifyAddNoteFormLayoutChanged({ force: true });
 }
 
 function setAddNoteTagsError(form, show) {
   const bar = form?.querySelector("#addNoteTagsBar");
-  const err = form?.querySelector("#addNoteTagsError");
-  const t = POPUP_I18N[currentLang] || POPUP_I18N.de;
-  if (err) {
-    err.textContent = t.tagsRequired;
-    err.hidden = !show;
-  }
+  const tagsHint = form?.querySelector("#addNoteTagsHint");
+  setAddNoteFormHintState(tagsHint, show);
   if (bar) bar.classList.toggle("addNoteTagsBar--invalid", !!show);
+}
+
+function setAddNoteCategoryError(form, show) {
+  const categoryHint = form?.querySelector("#addNoteCategoryHint");
+  setAddNoteFormHintState(categoryHint, show);
+}
+
+function setAddNoteContentError(form, textarea, show) {
+  const contentHint = form?.querySelector("#addNoteContentHint");
+  setAddNoteFormHintState(contentHint, show);
+  if (!textarea) return;
+  if (show) {
+    textarea.setAttribute("aria-invalid", "true");
+    const ids = ["addNoteCharHint", "addNoteContentHint"].filter(Boolean).join(" ");
+    textarea.setAttribute("aria-describedby", ids);
+  } else {
+    textarea.removeAttribute("aria-invalid");
+    textarea.setAttribute("aria-describedby", "addNoteCharHint");
+  }
 }
 
 function bindAddNoteFieldValidation(textarea, fieldError) {
@@ -1496,7 +1527,18 @@ function bindAddNoteFieldValidation(textarea, fieldError) {
   textarea.addEventListener("input", () => {
     const form = textarea.closest(".addNotePopupForm");
     const hasText = textarea.value.trim().length > 0;
-    if (hasText || pendingImageUrl) setAddNoteFieldError(fieldError, textarea, false);
+    if (hasText || pendingImageUrl) {
+      setAddNoteFieldError(fieldError, textarea, false);
+      if (form) setAddNoteContentError(form, textarea, false);
+    }
+  });
+}
+
+function bindAddNoteCategoryValidation(form, categoryBar) {
+  if (!categoryBar || categoryBar.dataset.categoryValidationBound === "1") return;
+  categoryBar.dataset.categoryValidationBound = "1";
+  categoryBar.addEventListener("click", () => {
+    if (getSelectedCategoryFromForm(form)) setAddNoteCategoryError(form, false);
   });
 }
 
@@ -1509,19 +1551,27 @@ function bindAddNoteTagsValidation(form, tagsBar) {
 }
 
 function validateAddNoteForm(form) {
-  const t = POPUP_I18N[currentLang] || POPUP_I18N.de;
   const textarea = form.querySelector("textarea");
   const fieldError = form.querySelector("#addNoteFieldError");
   const noteText = textarea?.value.trim() ?? "";
   const hasContent = noteText.length > 0 || !!pendingImageUrl;
+  const category = getSelectedCategoryFromForm(form);
   const tags = getSelectedTagsFromForm(form);
   let ok = true;
 
   if (!hasContent) {
-    setAddNoteFieldError(fieldError, textarea, true, t.contentRequired);
+    setAddNoteContentError(form, textarea, true);
     ok = false;
   } else {
-    setAddNoteFieldError(fieldError, textarea, false);
+    setAddNoteContentError(form, textarea, false);
+  }
+  setAddNoteFieldError(fieldError, textarea, false);
+
+  if (!category) {
+    setAddNoteCategoryError(form, true);
+    ok = false;
+  } else {
+    setAddNoteCategoryError(form, false);
   }
 
   if (tags.length === 0) {
@@ -1531,6 +1581,9 @@ function validateAddNoteForm(form) {
     setAddNoteTagsError(form, false);
   }
 
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => notifyAddNoteFormLayoutChanged({ force: true }));
+  });
   return ok;
 }
 
@@ -1654,7 +1707,10 @@ function createAddNotePhotoRow(t) {
   labelText.className = "addNotePhotoLabelText";
   labelText.textContent = t.addPhoto;
   pickBtn.appendChild(labelText);
-  const openPhotoPicker = () => fileInput.click();
+  const openPhotoPicker = () => {
+    fileInput.value = "";
+    fileInput.click();
+  };
   pickBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     openPhotoPicker();
@@ -1678,14 +1734,44 @@ function createAddNotePhotoRow(t) {
   previewViewport.appendChild(preview);
   bindInlineZoomableImage(previewViewport, preview);
 
+  const syncPhotoPreviewAria = () => {
+    const tr = POPUP_I18N[currentLang] || POPUP_I18N.de;
+    if (previewViewport.hidden || preview.hidden) {
+      previewViewport.setAttribute("aria-label", tr.zoomImage);
+    } else {
+      previewViewport.setAttribute("aria-label", tr.replacePhotoAria);
+    }
+  };
+
+  previewViewport.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (photoBusy || previewViewport.hidden || preview.hidden) return;
+    if (previewViewport.classList.contains("is-zoomed")) return;
+    openPhotoPicker();
+  });
+
+  const photoReplaceHint = createAddNoteFormHint("addNotePhotoReplaceHint", t.photoReplaceHint);
+  photoReplaceHint.hidden = true;
+
+  const syncPhotoUi = () => {
+    const hasPreview = !previewViewport.hidden && !preview.hidden;
+    row.classList.toggle("addNotePhotoRow--hasPreview", hasPreview);
+    photoReplaceHint.hidden = !hasPreview;
+    syncPhotoPreviewAria();
+    notifyAddNoteFormLayoutChanged({ force: true });
+  };
+
   const setPhotoError = (msg) => {
+    const wasHidden = photoError.hidden;
     if (!msg) {
       photoError.hidden = true;
       photoError.textContent = "";
+      if (!wasHidden) notifyAddNoteFormLayoutChanged({ force: true });
       return;
     }
     photoError.textContent = msg;
     photoError.hidden = false;
+    if (wasHidden) notifyAddNoteFormLayoutChanged({ force: true });
   };
 
   const resetPhotoPreview = () => {
@@ -1696,6 +1782,7 @@ function createAddNotePhotoRow(t) {
     preview.hidden = true;
     preview.removeAttribute("src");
     labelText.textContent = t.addPhoto;
+    syncPhotoUi();
     setPhotoError("");
   };
 
@@ -1723,6 +1810,7 @@ function createAddNotePhotoRow(t) {
         const ta = addForm.querySelector("textarea");
         const fe = addForm.querySelector("#addNoteFieldError");
         if (ta && fe) setAddNoteFieldError(fe, ta, false);
+        setAddNoteContentError(addForm, ta, false);
       }
       preview.src = dataUrl;
       await new Promise((resolve, reject) => {
@@ -1736,7 +1824,7 @@ function createAddNotePhotoRow(t) {
       previewViewport.classList.remove("is-loading");
       loadingEl.hidden = true;
       preview.hidden = false;
-      labelText.textContent = t.photoSelected;
+      syncPhotoUi();
     } catch (err) {
       fileInput.value = "";
       resetPhotoPreview();
@@ -1762,6 +1850,8 @@ function createAddNotePhotoRow(t) {
   row.appendChild(pickBtn);
   row.appendChild(photoError);
   row.appendChild(previewViewport);
+  row.appendChild(photoReplaceHint);
+  syncPhotoUi();
   return row;
 }
 
@@ -1805,12 +1895,13 @@ function getSelectedCategoryFromForm(form) {
   const bar = form?.querySelector("#addNoteCategoryBar");
   const active = bar?.querySelector('.markerPopupTag--category[aria-pressed="true"]');
   const id = active?.getAttribute("data-category-id");
-  return normalizeNoteCategory(id || DEFAULT_NOTE_CATEGORY);
+  if (!id) return null;
+  return normalizeNoteCategory(id);
 }
 
-function fillAddNoteCategoryBar(bar, selectedId = DEFAULT_NOTE_CATEGORY) {
+function fillAddNoteCategoryBar(bar, selectedId = null) {
   if (!bar) return;
-  const selected = normalizeNoteCategory(selectedId);
+  const selected = selectedId ? normalizeNoteCategory(selectedId) : null;
   const t = POPUP_I18N[currentLang] || POPUP_I18N.de;
   bar.replaceChildren();
   NOTE_CATEGORIES.forEach((cat) => {
@@ -1819,7 +1910,7 @@ function fillAddNoteCategoryBar(bar, selectedId = DEFAULT_NOTE_CATEGORY) {
     btn.className = "markerPopupTag markerPopupTag--category";
     btn.dataset.categoryId = cat.id;
     btn.textContent = currentLang === "en" ? cat.en : cat.de;
-    const active = cat.id === selected;
+    const active = selected !== null && cat.id === selected;
     btn.setAttribute("aria-pressed", active ? "true" : "false");
     btn.addEventListener("mousedown", (e) => e.stopPropagation());
     btn.addEventListener("click", (e) => {
@@ -1829,6 +1920,8 @@ function fillAddNoteCategoryBar(bar, selectedId = DEFAULT_NOTE_CATEGORY) {
         b.setAttribute("aria-pressed", "false");
       });
       btn.setAttribute("aria-pressed", "true");
+      const form = bar.closest(".addNotePopupForm");
+      if (form) setAddNoteCategoryError(form, false);
       releaseMapControlButton(btn);
     });
     bar.appendChild(btn);
@@ -1894,6 +1987,21 @@ function createAddNoteTagsRow() {
   return row;
 }
 
+/** One form row: padded inner + grey divider (except submit). */
+function appendAddNoteBlock(form, modifier, buildInner) {
+  const block = document.createElement("div");
+  block.className = `addNoteBlock addNoteBlock--${modifier}`;
+  const inner = document.createElement("div");
+  inner.className = "addNoteBlockInner";
+  buildInner(inner);
+  block.appendChild(inner);
+  if (modifier !== "submit") {
+    block.appendChild(createPopupDivider());
+  }
+  form.appendChild(block);
+  return { block, inner };
+}
+
 /** Build form content for the add-note popup (same look as marker popup). */
 function createAddNotePopupContent() {
   const t = POPUP_I18N[currentLang] || POPUP_I18N.de;
@@ -1901,10 +2009,9 @@ function createAddNotePopupContent() {
   form.className = "addNotePopupForm markerPopupBody";
   form.noValidate = true;
 
-  form.appendChild(createAddNoteFormHint("addNoteContentHint", t.contentHint));
-  form.appendChild(createPopupDivider());
-  form.appendChild(createAddNotePhotoRow(t));
-  form.appendChild(createPopupDivider());
+  appendAddNoteBlock(form, "photo", (inner) => {
+    inner.appendChild(createAddNotePhotoRow(t));
+  });
 
   const textBlock = document.createElement("div");
   textBlock.className = "addNoteTextBlock";
@@ -1918,6 +2025,8 @@ function createAddNotePopupContent() {
   fieldError.className = "addNoteFieldError";
   fieldError.setAttribute("role", "alert");
   fieldError.hidden = true;
+  const contentHint = createAddNoteFormHint("addNoteContentHint", t.contentHint);
+  contentHint.hidden = true;
   const hint = document.createElement("span");
   hint.id = "addNoteCharHint";
   hint.className = "addNoteConsentHint";
@@ -1957,48 +2066,57 @@ function createAddNotePopupContent() {
   bindAddNoteMobileMapGuard(textarea);
   textBlock.appendChild(textarea);
   textBlock.appendChild(fieldError);
-  form.appendChild(textBlock);
-  form.appendChild(createPopupDivider());
 
-  const labelsWrap = document.createElement("div");
-  labelsWrap.className = "markerPopupLabels addNotePopupLabels";
-  labelsWrap.appendChild(createAddNoteCategoryRow());
-  labelsWrap.appendChild(createAddNoteFormHint("addNoteCategoryHint", t.categoryHint));
-  labelsWrap.appendChild(createPopupDivider());
+  appendAddNoteBlock(form, "text", (inner) => {
+    inner.appendChild(textBlock);
+    inner.appendChild(contentHint);
+  });
+
+  const categoryRow = createAddNoteCategoryRow();
+  const categoryHint = createAddNoteFormHint("addNoteCategoryHint", t.categoryHint);
+  categoryHint.hidden = true;
+  appendAddNoteBlock(form, "category", (inner) => {
+    inner.appendChild(categoryRow);
+    inner.appendChild(categoryHint);
+  });
+  bindAddNoteCategoryValidation(form, categoryRow.querySelector("#addNoteCategoryBar"));
+
   const tagsRow = createAddNoteTagsRow();
-  labelsWrap.appendChild(tagsRow);
-  labelsWrap.appendChild(createAddNoteFormHint("addNoteTagsHint", t.tagsHint));
-  const tagsError = document.createElement("p");
-  tagsError.id = "addNoteTagsError";
-  tagsError.className = "addNoteTagsError";
-  tagsError.setAttribute("role", "alert");
-  tagsError.hidden = true;
-  labelsWrap.appendChild(tagsError);
+  const tagsHint = createAddNoteFormHint("addNoteTagsHint", t.tagsHint);
+  tagsHint.hidden = true;
+  appendAddNoteBlock(form, "tags", (inner) => {
+    inner.appendChild(tagsRow);
+    inner.appendChild(tagsHint);
+  });
   bindAddNoteTagsValidation(form, tagsRow.querySelector("#addNoteTagsBar"));
-  form.appendChild(labelsWrap);
-  form.appendChild(createPopupDivider());
 
-  form.appendChild(hint);
-  form.appendChild(createPopupDivider());
+  appendAddNoteBlock(form, "consent", (inner) => {
+    inner.appendChild(hint);
+  });
 
-  const submitRow = document.createElement("div");
-  submitRow.className = "markerPopupCategoryRow addNoteSubmitRow";
   const submitBtn = document.createElement("button");
   submitBtn.type = "submit";
   submitBtn.className = "markerPopupTag addNoteSubmitBtn";
   submitBtn.textContent = t.submitLabel;
-  submitRow.appendChild(submitBtn);
-  form.appendChild(submitRow);
+  appendAddNoteBlock(form, "submit", (inner) => {
+    inner.appendChild(submitBtn);
+  });
 
   pendingImageUrl = null;
   form.addEventListener("click", (e) => e.stopPropagation());
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     if (!validateAddNoteForm(form)) {
-      if (!textarea.value.trim() && !pendingImageUrl) textarea.focus();
-      else {
-        const tagsBar = form.querySelector("#addNoteTagsBar");
-        const firstTag = tagsBar?.querySelector(".markerPopupTag");
+    const noteText = textarea.value.trim();
+      const hasContent = noteText.length > 0 || !!pendingImageUrl;
+      const category = getSelectedCategoryFromForm(form);
+      const tags = getSelectedTagsFromForm(form);
+      if (!hasContent) textarea.focus();
+      else if (!category) {
+        const catBtn = form.querySelector("#addNoteCategoryBar .markerPopupTag--category");
+        if (catBtn && typeof catBtn.focus === "function") catBtn.focus();
+      } else if (tags.length === 0) {
+        const firstTag = form.querySelector("#addNoteTagsBar .markerPopupTag");
         if (firstTag && typeof firstTag.focus === "function") firstTag.focus();
       }
       return;
@@ -2040,16 +2158,14 @@ function updateAddNotePopupLang() {
   const submitBtn = form?.querySelector(".addNoteSubmitBtn");
   if (!textarea || !hint) return;
   const t = POPUP_I18N[currentLang] || POPUP_I18N.de;
-  if (fieldError && !fieldError.hidden) setAddNoteFieldError(fieldError, textarea, true, t.contentRequired);
-  else if (fieldError) fieldError.textContent = t.contentRequired;
   const contentHint = form?.querySelector("#addNoteContentHint");
   const categoryHint = form?.querySelector("#addNoteCategoryHint");
   const tagsHint = form?.querySelector("#addNoteTagsHint");
   if (contentHint) contentHint.textContent = t.contentHint;
   if (categoryHint) categoryHint.textContent = t.categoryHint;
   if (tagsHint) tagsHint.textContent = t.tagsHint;
-  const tagsError = form?.querySelector("#addNoteTagsError");
-  if (tagsError && !tagsError.hidden) tagsError.textContent = t.tagsRequired;
+  const photoReplaceHint = form?.querySelector("#addNotePhotoReplaceHint");
+  if (photoReplaceHint) photoReplaceHint.textContent = t.photoReplaceHint;
   if (categoryBar) fillAddNoteCategoryBar(categoryBar, getSelectedCategoryFromForm(form));
   if (submitBtn) submitBtn.textContent = t.submitLabel;
   textarea.placeholder = t.placeholder;
@@ -2088,10 +2204,16 @@ function updateAddNotePopupLang() {
   const photoLoading = form?.querySelector(".addNotePhotoLoading");
   if (photoLoading) photoLoading.textContent = t.photoLoading;
   if (photoLabelText) {
-    photoLabelText.textContent =
-      pendingImageUrl || form?.querySelector(".addNotePhotoPreviewViewport:not([hidden])")
-        ? t.photoSelected
-        : t.addPhoto;
+    photoLabelText.textContent = t.addPhoto;
+  }
+  const photoPreviewViewport = form?.querySelector(".addNotePhotoPreviewViewport");
+  if (photoPreviewViewport) {
+    const tr = POPUP_I18N[currentLang] || POPUP_I18N.de;
+    if (photoPreviewViewport.hidden) {
+      photoPreviewViewport.setAttribute("aria-label", tr.zoomImage);
+    } else {
+      photoPreviewViewport.setAttribute("aria-label", tr.replacePhotoAria);
+    }
   }
   const tagsBar = form?.querySelector("#addNoteTagsBar");
   if (tagsBar) {
@@ -2299,6 +2421,7 @@ function openAddNoteMobileSheet(lngLat, content) {
 
   const ta = content.querySelector("textarea");
   if (ta) ta.value = "";
+  bindAddNoteFormLayoutWatch(content);
 }
 
 function closeAddNoteMobileSheetAnimated(done) {
@@ -2334,6 +2457,7 @@ function openAddNotePopup(lngLat) {
     addNoteMobileSheetEl.replaceChildren();
   }
   addNoteSavedMapView = null;
+  addNoteInitialMapPlacementDone = false;
   unlockMapLayoutForAddNote();
 
   const content = createAddNotePopupContent();
@@ -2353,24 +2477,15 @@ function openAddNotePopup(lngLat) {
   };
   addNotePopup = new maplibregl.Popup(popupOptions)
     .setLngLat(center)
-    .setDOMContent(content)
-    .addTo(map);
-  flyMapToPlacePin(center, { zoom: map.getZoom() });
-  syncActiveMarkerEmphasis();
+    .setDOMContent(content);
   addNotePopup.on("close", () => {
     closeAddNotePopup();
   });
-  addNotePopup.once("open", () => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        const ta = content.querySelector("textarea");
-        if (!ta) return;
-          ta.value = "";
-          ta.focus();
-          ta.setSelectionRange(0, 0);
-      });
-    });
+  addNotePopup.on("open", () => {
+    whenMapIdle(() => finishAddNotePopupOpenPlacement(content));
   });
+  addNotePopup.addTo(map);
+  syncActiveMarkerEmphasis();
 }
 
 function closeAddNotePopup(options = {}) {
@@ -2383,6 +2498,8 @@ function closeAddNotePopup(options = {}) {
   }
 
   const finalizeClose = () => {
+    unbindAddNoteFormLayoutWatch();
+    addNoteInitialMapPlacementDone = false;
     unlockMapLayoutForAddNote();
   if (pendingSubmitMarker) {
     pendingSubmitMarker.remove();
@@ -2458,8 +2575,8 @@ async function submitNote(noteText, buttonEl, category = DEFAULT_NOTE_CATEGORY, 
     closeAddNotePopup({
       skipRestore: true,
       onClosed: () => {
-        if (!map) return;
-        openOrToggleMarkerPopup(item.id);
+      if (!map) return;
+      openOrToggleMarkerPopup(item.id);
       },
     });
   };
@@ -2488,14 +2605,211 @@ const PANEL_SLIDE_MS = 220;
 /** Pixel offset for flyMapToPlacePin: pin appears this far below map center (negative = above center). */
 function getAddNotePlacementOffsetPx() {
   if (!map?.getContainer()) return MARKER_OFFSET_BELOW_CENTER;
-  if (!isMobileAddNoteViewport() || !addNoteMobileSheetEl || addNoteMobileSheetEl.hidden) {
-    return MARKER_OFFSET_BELOW_CENTER;
-  }
   const mapH = map.getContainer().clientHeight;
-  const sheetH = addNoteMobileSheetEl.getBoundingClientRect().height;
-  if (mapH <= 0 || sheetH <= 0) return MARKER_OFFSET_BELOW_CENTER;
-  // Pin just above the sheet: screen Y ≈ mapH - sheetH - gap → offset from map vertical center
-  return mapH / 2 - sheetH - ADD_NOTE_PIN_GAP_ABOVE_SHEET;
+  if (mapH <= 0) return MARKER_OFFSET_BELOW_CENTER;
+
+  if (isMobileAddNoteViewport() && addNoteMobileSheetEl && !addNoteMobileSheetEl.hidden) {
+    const sheetH = addNoteMobileSheetEl.getBoundingClientRect().height;
+    if (sheetH > 0) {
+      return mapH / 2 - sheetH - ADD_NOTE_PIN_GAP_ABOVE_SHEET;
+    }
+  }
+
+  return MARKER_OFFSET_BELOW_CENTER;
+}
+
+let addNoteFormResizeObserver = null;
+let addNoteRepositionRaf = 0;
+let addNoteRepositionDebounceTimer = 0;
+
+function notifyAddNoteFormLayoutChanged(options = {}) {
+  if (!isAddNoteFormOpen()) return;
+  scheduleRepositionMapForAddNote(options);
+}
+
+function getMapCanvasRect() {
+  const canvas = map?.getCanvas?.();
+  if (canvas) return canvas.getBoundingClientRect();
+  const container = map?.getContainer?.();
+  const el = container?.querySelector(".maplibregl-canvas");
+  return el?.getBoundingClientRect() ?? container?.getBoundingClientRect() ?? null;
+}
+
+/** Top/bottom edges to balance in the map canvas (add-note blocks or marker popup chrome). */
+function getPopupVerticalBounds(popupEl) {
+  const form = popupEl.querySelector(".addNotePopupForm");
+  if (form) {
+    const inners = form.querySelectorAll(".addNoteBlockInner");
+    if (inners.length) {
+      const first = inners[0].getBoundingClientRect();
+      const last = inners[inners.length - 1].getBoundingClientRect();
+      return { top: first.top, bottom: last.bottom, widthEl: form };
+    }
+  }
+  const root = popupEl.querySelector(".markerPopupBody");
+  if (!root) return null;
+  const topEl =
+    root.querySelector(".markerPopupImageViewport") ||
+    root.querySelector(".markerPopupCopy") ||
+    root;
+  const bottomEl = root.querySelector(".markerPopupLabels") || root;
+  const topRect = topEl.getBoundingClientRect();
+  const bottomRect = bottomEl.getBoundingClientRect();
+  return { top: topRect.top, bottom: bottomRect.bottom, widthEl: root };
+}
+
+/**
+ * Pan map so popup content has equal gap above/below inside the map canvas (camera only).
+ * @returns {boolean} true if a pan was started
+ */
+function equalizePopupGapsInMapCanvas(popup, options = {}) {
+  if (!map || !popup) return false;
+  const canvasRect = getMapCanvasRect();
+  const popupEl = typeof popup.getElement === "function" ? popup.getElement() : null;
+  if (!canvasRect || !popupEl) return false;
+
+  const bounds = getPopupVerticalBounds(popupEl);
+  if (!bounds) return false;
+
+  const contentHeight = bounds.bottom - bounds.top;
+  if (contentHeight <= 0 || contentHeight > canvasRect.height) return false;
+
+  const widthRect = bounds.widthEl.getBoundingClientRect();
+  const desiredTop = canvasRect.top + (canvasRect.height - contentHeight) / 2;
+  const shiftY = desiredTop - bounds.top;
+  const shiftX =
+    canvasRect.left + canvasRect.width / 2 - (widthRect.left + widthRect.width / 2);
+
+  if (Math.abs(shiftX) < 2 && Math.abs(shiftY) < 2) return false;
+
+  map.panBy([-shiftX, -shiftY], {
+    duration: options.duration ?? 350,
+    essential: true,
+  });
+  return true;
+}
+
+/** Run callback after fly/pan animations finish (resize path already relied on this). */
+function whenMapIdle(callback) {
+  if (!map || typeof callback !== "function") return;
+  if (typeof map.isMoving === "function" && map.isMoving()) {
+    map.once("moveend", () => whenMapIdle(callback));
+    return;
+  }
+  callback();
+}
+
+/** Desktop only — mobile add-note uses the bottom sheet + reflyMapForOpenAddNoteSheet. */
+function scheduleEqualizePopupGaps(popup) {
+  if (!popup || isMobileAddNoteViewport()) return;
+  whenMapIdle(() => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => equalizePopupGapsInMapCanvas(popup));
+    });
+  });
+}
+
+/** Desktop open — same single pan as resize (no easeTo before equalize). */
+function finishDesktopMarkerPopupOpen(popup) {
+  if (!popup || isMobileAddNoteViewport()) return;
+  scheduleEqualizePopupGaps(popup);
+  window.setTimeout(() => scheduleEqualizePopupGaps(popup), 100);
+}
+
+function finishDesktopAddNotePopupOpen(popup, content) {
+  const ta = content?.querySelector("textarea");
+  if (ta) {
+    ta.value = "";
+    ta.focus();
+    ta.setSelectionRange(0, 0);
+  }
+  finishDesktopMarkerPopupOpen(popup);
+}
+
+function finishAddNotePopupOpenPlacement(content) {
+  addNoteInitialMapPlacementDone = true;
+  if (!isMobileAddNoteViewport() && addNotePopup && pendingPoint) {
+    finishDesktopAddNotePopupOpen(addNotePopup, content);
+  }
+  bindAddNoteFormLayoutWatch(content);
+}
+
+/**
+ * Reframe map when add-note form height changes.
+ * Mobile: unchanged sheet refly. Desktop: equal gaps in canvas.
+ */
+function recenterOpenAddNotePopup() {
+  if (!map || !pendingPoint || !isAddNoteFormOpen()) return;
+  const lngLat = [pendingPoint.lng, pendingPoint.lat];
+  if (isMobileAddNoteViewport() && isAddNoteMobileSheetOpen()) {
+    reflyMapForOpenAddNoteSheet(lngLat);
+    return;
+  }
+  if (addNotePopup) scheduleEqualizePopupGaps(addNotePopup);
+}
+
+function scheduleRepositionMapForAddNote(options = {}) {
+  if (!map || !pendingPoint || !isAddNoteFormOpen()) return;
+  const force = options.force === true;
+  if (!force && addNotePopup && !isMobileAddNoteViewport() && !addNoteInitialMapPlacementDone) {
+    return;
+  }
+  clearTimeout(addNoteRepositionDebounceTimer);
+  addNoteRepositionDebounceTimer = window.setTimeout(() => {
+    addNoteRepositionDebounceTimer = 0;
+    if (typeof map.isMoving === "function" && map.isMoving()) {
+      map.once("moveend", () => scheduleRepositionMapForAddNote(options));
+      return;
+    }
+    if (addNoteRepositionRaf) cancelAnimationFrame(addNoteRepositionRaf);
+    addNoteRepositionRaf = requestAnimationFrame(() => {
+      addNoteRepositionRaf = requestAnimationFrame(() => {
+        addNoteRepositionRaf = 0;
+        recenterOpenAddNotePopup();
+      });
+    });
+  }, 40);
+}
+
+function bindAddNoteFormLayoutWatch(form) {
+  unbindAddNoteFormLayoutWatch();
+  if (!form || typeof ResizeObserver === "undefined") return;
+  addNoteFormResizeObserver = new ResizeObserver(() =>
+    notifyAddNoteFormLayoutChanged({ force: true })
+  );
+  addNoteFormResizeObserver.observe(form);
+  const popupRoot =
+    addNotePopup && typeof addNotePopup.getElement === "function" ? addNotePopup.getElement() : null;
+  if (popupRoot) {
+    addNoteFormResizeObserver.observe(popupRoot);
+    const popupContent = popupRoot.querySelector(".maplibregl-popup-content");
+    if (popupContent) addNoteFormResizeObserver.observe(popupContent);
+  }
+  if (addNoteMobileSheetEl && !addNoteMobileSheetEl.hidden) {
+    addNoteFormResizeObserver.observe(addNoteMobileSheetEl);
+  }
+  bindAddNotePhotoLayoutRecenter(form);
+}
+
+function bindAddNotePhotoLayoutRecenter(form) {
+  if (!form || form.dataset.photoRecenterBound === "1") return;
+  form.dataset.photoRecenterBound = "1";
+  const img = form.querySelector(".addNotePhotoPreview");
+  if (!img) return;
+  const recenter = () => notifyAddNoteFormLayoutChanged({ force: true });
+  img.addEventListener("load", recenter);
+  img.addEventListener("error", recenter);
+}
+
+function unbindAddNoteFormLayoutWatch() {
+  addNoteFormResizeObserver?.disconnect();
+  addNoteFormResizeObserver = null;
+  clearTimeout(addNoteRepositionDebounceTimer);
+  addNoteRepositionDebounceTimer = 0;
+  if (addNoteRepositionRaf) {
+    cancelAnimationFrame(addNoteRepositionRaf);
+    addNoteRepositionRaf = 0;
+  }
 }
 
 function flyMapToPlacePinForAddNote(lngLat, options = {}) {
@@ -2568,16 +2882,34 @@ function getCenterLngLatWithMarkerBelow(lngLat, offsetPx) {
   return map.unproject([point.x, point.y - offsetPx]);
 }
 
+/** MapLibre Popup has setOffset but no getOffset — track offsets ourselves. */
+const popupOffsetStore = new WeakMap();
+
+function readPopupOffset(popup) {
+  if (typeof popup?.getOffset === "function") {
+    const cur = popup.getOffset();
+    if (Array.isArray(cur)) return [cur[0] ?? 0, cur[1] ?? 0];
+    if (cur && typeof cur === "object") return [cur.x ?? 0, cur.y ?? 0];
+  }
+  return popupOffsetStore.get(popup) ?? [0, -GAP_ABOVE_MARKER];
+}
+
+function writePopupOffset(popup, offset) {
+  const ox = offset[0] ?? 0;
+  const oy = offset[1] ?? 0;
+  popupOffsetStore.set(popup, [ox, oy]);
+  if (typeof popup?.setOffset === "function") popup.setOffset([ox, oy]);
+}
+
 /** Center the open popup in the map viewport (pan within maxBounds, small offset if needed). */
-function centerPopupInMapView(popup) {
+function centerPopupInMapView(popup, options = {}) {
   if (!map || !popup) return;
   const container = map.getContainer();
   const popupEl = typeof popup.getElement === "function" ? popup.getElement() : null;
   if (!container || !popupEl) return;
 
-  if (typeof popup.setOffset === "function") {
-    popup.setOffset([0, -GAP_ABOVE_MARKER]);
-  }
+  const resetOffset = options.resetOffset !== false;
+  if (resetOffset) writePopupOffset(popup, [0, -GAP_ABOVE_MARKER]);
 
   const mapRect = container.getBoundingClientRect();
   const pr = popupEl.getBoundingClientRect();
@@ -2591,16 +2923,18 @@ function centerPopupInMapView(popup) {
     const dx2 = mapRect.left + mapRect.width / 2 - (pr2.left + pr2.width / 2);
     const dy2 = mapRect.top + mapRect.height / 2 - (pr2.top + pr2.height / 2);
     if (Math.abs(dx2) < 2 && Math.abs(dy2) < 2) return;
-    const cur = popup.getOffset();
-    const ox = (typeof cur?.x === "number" ? cur.x : cur?.[0]) || 0;
-    const oy = (typeof cur?.y === "number" ? cur.y : cur?.[1]) || -GAP_ABOVE_MARKER;
-    popup.setOffset([ox + dx2, oy + dy2]);
+    if (typeof popup.setOffset === "function") {
+      const [ox, oy] = readPopupOffset(popup);
+      writePopupOffset(popup, [ox + dx2, oy + dy2]);
+    } else {
+      map.panBy([dx2, dy2], { duration: 200 });
+    }
   });
 }
 
-function scheduleCenterPopupInMapView(popup) {
+function scheduleCenterPopupInMapView(popup, options) {
   requestAnimationFrame(() => {
-    requestAnimationFrame(() => centerPopupInMapView(popup));
+    requestAnimationFrame(() => centerPopupInMapView(popup, options));
   });
 }
 
@@ -2612,7 +2946,13 @@ function flyMapToMarker(lngLat, zoom) {
 function bindPopupRecenterOnImageLoad(popup, root) {
   const img = root?.querySelector?.(".markerPopupImage");
   if (!img) return;
-  const recenter = () => scheduleCenterPopupInMapView(popup);
+  const recenter = () => {
+    if (isMobileAddNoteViewport()) {
+      scheduleCenterPopupInMapView(popup);
+    } else {
+      scheduleEqualizePopupGaps(popup);
+    }
+  };
   if (img.complete) return;
   img.addEventListener("load", recenter, { once: true });
   img.addEventListener("error", recenter, { once: true });
@@ -2647,7 +2987,9 @@ function openOrToggleMarkerPopup(noteId, options = {}) {
   }
   if (openMarkerPopup) openMarkerPopup.remove();
   const lngLat = marker.getLngLat();
-  flyMapToMarker(lngLat, options.zoom);
+  if (isMobileAddNoteViewport()) {
+    flyMapToMarker(lngLat, options.zoom);
+  }
   const content = createMarkerPopupContent(note);
   const popup = new maplibregl.Popup({
     anchor: "bottom",
@@ -2657,19 +2999,22 @@ function openOrToggleMarkerPopup(noteId, options = {}) {
     closeOnClick: false,
   })
     .setLngLat(lngLat)
-    .setDOMContent(content)
-    .addTo(map);
+    .setDOMContent(content);
   popup.on("close", () => {
     openMarkerPopup = null;
     openMarkerPopupId = null;
     clearAllMarkerEmphasis();
   });
   popup.on("open", () => {
-    scheduleCenterPopupInMapView(popup);
-    map.once("moveend", () => scheduleCenterPopupInMapView(popup));
     bindPopupRecenterOnImageLoad(popup, content);
     syncActiveMarkerEmphasis();
+    if (isMobileAddNoteViewport()) {
+      whenMapIdle(() => scheduleCenterPopupInMapView(popup));
+      return;
+    }
+    whenMapIdle(() => finishDesktopMarkerPopupOpen(popup));
   });
+  popup.addTo(map);
   openMarkerPopup = popup;
   openMarkerPopupId = noteId;
   syncActiveMarkerEmphasis();
