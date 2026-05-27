@@ -4,7 +4,7 @@ const STORAGE_KEY = "rechts-notes:v1";
 const LANG_STORAGE_KEY = "rechts-lang";
 
 /** Bottom-left badge; bump when index.html cache-bust (?v=) changes. */
-const APP_VERSION = "41";
+const APP_VERSION = "42";
 
 const MARKER_PIN_COLOR = "#9bd545";
 
@@ -18,8 +18,6 @@ const ARCHIVE_IMAGE_URLS = [
   "https://upload.wikimedia.org/wikipedia/commons/thumb/7/77/Bundestagswahlkampf_Plakat_AfD_Aachen_6205.jpg/330px-Bundestagswahlkampf_Plakat_AfD_Aachen_6205.jpg",
   "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d2/AfD_Adbusting-Wenn_AfD_die_Antwort_sein_soll%2C_wie_dumm_war_dann_bitte_die_Frage.jpg/500px-AfD_Adbusting-Wenn_AfD_die_Antwort_sein_soll%2C_wie_dumm_war_dann_bitte_die_Frage.jpg",
 ];
-
-const LOCAL_DEMO_IMAGE_URL = "img/test.png";
 
 /** @type {{ id: string, de: string, en: string }[]} */
 const NOTE_CATEGORIES = [
@@ -432,7 +430,6 @@ function setStatus(msg, options = {}) {
   if (msg && options.autoDismiss) {
     statusClearTimer = window.setTimeout(() => setStatus(""), 4500);
   }
-  if (msg) console.warn(msg);
 }
 
 /** Release stuck :hover/focus on touch devices after tapping map chrome buttons. */
@@ -515,15 +512,13 @@ function seedDemoNotesIfEmpty() {
 }
 
 function pickRandomArchiveImageUrl() {
-  const pool = LOCAL_DEMO_IMAGE_URL
-    ? [...ARCHIVE_IMAGE_URLS, LOCAL_DEMO_IMAGE_URL]
-    : ARCHIVE_IMAGE_URLS;
+  const pool = ARCHIVE_IMAGE_URLS;
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
 function normalizeNoteImageUrl(url) {
   if (!url || url.startsWith("data:")) return url;
-  if (url === LOCAL_DEMO_IMAGE_URL || ARCHIVE_IMAGE_URLS.includes(url)) return url;
+  if (ARCHIVE_IMAGE_URLS.includes(url)) return url;
   return pickRandomArchiveImageUrl();
 }
 
@@ -536,7 +531,7 @@ function bindImageFallback(img, getFallbackUrl = pickRandomArchiveImageUrl) {
   }, { once: true });
 }
 
-/** Assign documentary demo images to pins missing imageUrl (or still on local test.png). */
+/** Assign documentary demo images to pins missing imageUrl. */
 function ensureDemoImagesOnNotes() {
   let changed = false;
   notes.forEach((n, i) => {
@@ -1065,7 +1060,7 @@ const MAX_NOTE_CHARS = 3000;
 const MAX_IMAGE_FILE_BYTES = 800_000;
 const MAX_IMAGE_INPUT_BYTES = 30 * 1024 * 1024;
 const MAX_IMAGE_DIMENSION = 1600;
-/** @type {string|null} Data URL or path (e.g. img/test.png) for the note being created. */
+/** @type {string|null} Data URL for the note being created. */
 let pendingImageUrl = null;
 
 /** Translations for add-note popup (placeholder and consent sentence). */
@@ -3149,7 +3144,10 @@ function hydrateNotesFromStorage() {
 function initMap() {
   if (window.location.protocol === "file:") {
     setStatus(
-      "Open this page via http:// (e.g. run: python3 -m http.server 5173, then visit http://localhost:5173). file:// often breaks map rendering.",
+      currentLang === "de"
+        ? "Bitte die Seite über http:// öffnen (nicht als lokale Datei)."
+        : "Please open this page over http:// (not as a local file).",
+      { variant: "mapUi" },
     );
     return;
   }
@@ -3256,8 +3254,8 @@ function initMap() {
     if (mapShown) return;
     setStatus(
       currentLang === "de"
-        ? "Karte lädt nicht. Internet nötig (unpkg.com + Karten-Tiles). Simulator: Safari erlauben, dann neu laden."
-        : "Map not loading. Internet required (unpkg.com + map tiles). In Simulator: allow Safari network, then reload.",
+        ? "Karte lädt nicht. Bitte Internetverbindung prüfen und Seite neu laden."
+        : "Map could not load. Check your internet connection and reload.",
       { variant: "mapUi" },
     );
   }, 20000);
@@ -4018,11 +4016,6 @@ function applyAppVersionBadge() {
 }
 
 function initApp() {
-  window.__RECHTS_APP_STARTED = true;
-  if (window.__RECHTS_BOOT_TIMER) {
-    clearTimeout(window.__RECHTS_BOOT_TIMER);
-  }
-
   applyAppPlatformClasses();
   applyAppVersionBadge();
 

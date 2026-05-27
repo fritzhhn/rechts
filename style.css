@@ -420,6 +420,9 @@ body.add-note-lock-layout .map-wrapper {
   --z-map-overlay: 1010;
   --z-map-sheet: 1009; /* mobile add-note sheet: above map chrome, below open menu/archive */
   --panel-top-line: 1px solid rgba(0, 0, 0, 0.08);
+  --popup-pill-font-size: 11px;
+  --popup-pill-line-height: 1.3;
+  --popup-pill-padding: 4px 6px;
 }
 
 .topHeaderBar {
@@ -822,8 +825,6 @@ html.platform-android .bottomRightControls {
   display: none;
 }
 
-.archiveFilterBtn,
-.archiveTagBtn,
 .menuFilterBtn {
   border: none;
   background: var(--map-ui-btn-bg);
@@ -832,7 +833,24 @@ html.platform-android .bottomRightControls {
   font-size: 9px;
   font-weight: 700;
   line-height: 1.2;
-  padding: 4px 6px;
+  padding: var(--popup-pill-padding);
+  cursor: var(--cursor-pointer);
+  border-radius: 0;
+  box-shadow: none;
+  text-align: center;
+  max-width: 100%;
+}
+
+.archiveFilterBtn,
+.archiveTagBtn {
+  border: none;
+  background: var(--map-ui-btn-bg);
+  color: #000;
+  font: inherit;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.2;
+  padding: var(--popup-pill-padding);
   cursor: var(--cursor-pointer);
   border-radius: 0;
   box-shadow: none;
@@ -1636,10 +1654,10 @@ body.imageLightboxOpen {
   background: var(--map-ui-btn-bg);
   color: #000;
   font: inherit;
-  font-size: 11px;
+  font-size: var(--popup-pill-font-size);
   font-weight: 700;
-  line-height: 1.3;
-  padding: 4px 6px;
+  line-height: var(--popup-pill-line-height);
+  padding: var(--popup-pill-padding);
   cursor: var(--cursor-pointer);
   border-radius: 0;
   box-shadow: none;
@@ -2006,6 +2024,15 @@ body.imageLightboxOpen {
 
   .map {
     transition: none;
+  }
+}
+
+/* Desktop archive filters: match popup category/tag pills */
+@media (min-width: 601px) {
+  .archiveFilterBtn,
+  .archiveTagBtn {
+    font-size: var(--popup-pill-font-size);
+    line-height: var(--popup-pill-line-height);
   }
 }
 

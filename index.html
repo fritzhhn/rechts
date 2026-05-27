@@ -27,7 +27,7 @@
       rel="stylesheet"
       href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"
     />
-    <link rel="stylesheet" href="./style.css?v=41" />
+    <link rel="stylesheet" href="./style.css?v=42" />
   </head>
   <body>
     <div id="appStatus" class="appStatus appStatus--mapUi" role="status" aria-live="polite">
@@ -352,17 +352,7 @@
       <img id="imageLightboxImg" class="imageLightboxImg" alt="" decoding="async" />
     </div>
 
-    <script>
-      window.__RECHTS_BOOT_TIMER = setTimeout(function () {
-        if (window.__RECHTS_APP_STARTED) return;
-        var el = document.getElementById("appStatus");
-        if (!el) return;
-        el.classList.add("appStatus--mapUi");
-        el.textContent =
-          "Still loading… This app needs internet on your phone (map library + map tiles), not only Wi‑Fi to your Mac.";
-      }, 8000);
-    </script>
     <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js" defer></script>
-    <script src="./app.js?v=41" defer></script>
+    <script src="./app.js?v=42" defer></script>
   </body>
 </html>
