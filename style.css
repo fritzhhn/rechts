@@ -127,8 +127,14 @@ body {
   background: rgb(198, 228, 153);
 }
 
+html:has(body.add-note-form-open),
 body.add-note-form-open {
   overflow: hidden;
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
+}
+
+body.add-note-form-open {
   position: fixed;
   width: 100%;
   height: 100%;
@@ -141,15 +147,31 @@ body.add-note-lock-layout .map-wrapper {
 }
 
 /* Mobile add-note: fixed sheet on body (not inside map touch-action:none). */
+.addNoteMobileSheetHandle {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 4px;
+  margin: 8px auto 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.22);
+  touch-action: none;
+  cursor: grab;
+}
+
+.addNoteMobileSheet.addNoteMobileSheet--dragging .addNoteMobileSheetHandle {
+  cursor: grabbing;
+}
+
 .addNoteMobileSheet {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 1100;
+  z-index: var(--z-map-sheet);
   display: flex;
   flex-direction: column;
   max-height: min(92dvh, 96%);
+  overscroll-behavior: contain;
   overflow: hidden;
   touch-action: auto;
   background: var(--map-ui-btn-bg);
@@ -396,6 +418,7 @@ body.add-note-lock-layout .map-wrapper {
   --z-map-header: 1003;
   --z-map-chrome: 1005;
   --z-map-overlay: 1010;
+  --z-map-sheet: 1009; /* mobile add-note sheet: above map chrome, below open menu/archive */
   --panel-top-line: 1px solid rgba(0, 0, 0, 0.08);
 }
 
@@ -425,8 +448,6 @@ body:has(.archiveOverlay.open) .topHeaderBar {
 
 .leftControls {
   position: fixed;
-  top: 0;
-  left: 0;
   top: env(safe-area-inset-top, 0);
   left: env(safe-area-inset-left, 0);
   z-index: var(--z-map-chrome);
@@ -435,16 +456,16 @@ body:has(.archiveOverlay.open) .topHeaderBar {
   gap: var(--map-ui-btn-gap);
 }
 
-/* Full-screen menu/archive on phones: panel covers map; keep hamburger/archive above overlay */
+/* Touch/Android: fill to physical bottom (inset bottom on .menuOverlay often leaves a map strip) */
 @media (max-width: 600px), (pointer: coarse) {
-  .menuOverlay,
-  .archiveOverlay {
-    --menu-top: env(safe-area-inset-top, 0);
-  }
-
-  .leftControls:has(.hamburgerBtn.menuOpen),
-  .leftControls:has(.archiveBtn.archiveOpen) {
-    z-index: calc(var(--z-map-overlay) + 1);
+  .menuOverlay.open,
+  .archiveOverlay.open {
+    bottom: 0;
+    height: auto;
+    min-height: calc(100vh - var(--menu-top));
+    min-height: calc(100dvh - var(--menu-top));
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    box-sizing: border-box;
   }
 }
 
@@ -466,6 +487,27 @@ body:has(.archiveOverlay.open) .topHeaderBar {
   border-radius: var(--map-ui-radius);
   overflow: hidden;
   box-shadow: var(--map-ui-shadow);
+}
+
+.appVersionBadge {
+  position: fixed;
+  left: max(6px, env(safe-area-inset-left, 0px));
+  bottom: max(5px, env(safe-area-inset-bottom, 0px));
+  z-index: 1000;
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+  color: rgba(0, 0, 0, 0.42);
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Rounded display corners: lift zoom stack so “+” stays visible */
+html.platform-android .bottomRightControls {
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
 }
 
 .leftControls .instagramBtn {

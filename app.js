@@ -3,6 +3,9 @@
 const STORAGE_KEY = "rechts-notes:v1";
 const LANG_STORAGE_KEY = "rechts-lang";
 
+/** Bottom-left badge; bump when index.html cache-bust (?v=) changes. */
+const APP_VERSION = "41";
+
 const MARKER_PIN_COLOR = "#9bd545";
 
 /**
@@ -2371,6 +2374,93 @@ function bindAddNoteMobileMapGuard(textarea) {
   });
 }
 
+function ensureAddNoteMobileSheetHandle(sheet) {
+  let handle = sheet.querySelector(".addNoteMobileSheetHandle");
+  if (!handle) {
+    handle = document.createElement("div");
+    handle.className = "addNoteMobileSheetHandle";
+    handle.setAttribute("aria-hidden", "true");
+  }
+  sheet.prepend(handle);
+}
+
+function bindAddNoteMobileSheetSwipeDismiss(sheet) {
+  if (!sheet || sheet.dataset.swipeDismissBound === "1") return;
+  sheet.dataset.swipeDismissBound = "1";
+
+  const SWIPE_CLOSE_PX = 72;
+  let startY = 0;
+  let dragY = 0;
+  let dragging = false;
+  let pointerId = null;
+
+  const formEl = () => sheet.querySelector(".addNotePopupForm");
+
+  const canStartFromTarget = (target) => {
+    if (!target || !(target instanceof Element)) return false;
+    if (target.closest(".addNoteMobileSheetHandle")) return true;
+    const form = formEl();
+    if (!form) return true;
+    if (!form.contains(target)) return true;
+    return form.scrollTop <= 0;
+  };
+
+  const resetDragTransform = () => {
+    sheet.style.removeProperty("transform");
+    sheet.style.removeProperty("transition");
+  };
+
+  const onPointerDown = (e) => {
+    if (!sheet.classList.contains("addNoteMobileSheet--open")) return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    if (!canStartFromTarget(e.target)) return;
+    dragging = true;
+    pointerId = e.pointerId;
+    startY = e.clientY;
+    dragY = 0;
+    sheet.classList.add("addNoteMobileSheet--dragging");
+    sheet.style.transition = "none";
+    if (typeof sheet.setPointerCapture === "function") {
+      sheet.setPointerCapture(e.pointerId);
+    }
+  };
+
+  const onPointerMove = (e) => {
+    if (!dragging || e.pointerId !== pointerId) return;
+    dragY = Math.max(0, e.clientY - startY);
+    if (dragY > 0) e.preventDefault();
+    sheet.style.transform = `translate3d(0, ${dragY}px, 0)`;
+  };
+
+  const endDrag = (e) => {
+    if (!dragging || (e && e.pointerId !== pointerId)) return;
+    dragging = false;
+    pointerId = null;
+    sheet.classList.remove("addNoteMobileSheet--dragging");
+    sheet.style.removeProperty("transition");
+    if (dragY >= SWIPE_CLOSE_PX) {
+      resetDragTransform();
+      closeAddNotePopup();
+      return;
+    }
+    sheet.classList.add("addNoteMobileSheet--open");
+    resetDragTransform();
+  };
+
+  sheet.addEventListener("pointerdown", onPointerDown);
+  sheet.addEventListener("pointermove", onPointerMove, { passive: false });
+  sheet.addEventListener("pointerup", endDrag);
+  sheet.addEventListener("pointercancel", endDrag);
+
+  sheet.addEventListener(
+    "touchmove",
+    (e) => {
+      if (dragging && dragY > 0) e.preventDefault();
+    },
+    { passive: false }
+  );
+}
+
 function ensureAddNoteMobileSheet() {
   if (addNoteMobileSheetEl) return addNoteMobileSheetEl;
   const sheet = document.createElement("div");
@@ -2380,6 +2470,7 @@ function ensureAddNoteMobileSheet() {
   sheet.addEventListener("click", (e) => e.stopPropagation());
   sheet.addEventListener("touchstart", (e) => e.stopPropagation(), { passive: true });
   document.body.appendChild(sheet);
+  bindAddNoteMobileSheetSwipeDismiss(sheet);
   addNoteMobileSheetEl = sheet;
   return sheet;
 }
@@ -2394,10 +2485,13 @@ function reflyMapForOpenAddNoteSheet(lngLat) {
 function openAddNoteMobileSheet(lngLat, content) {
   const sheet = ensureAddNoteMobileSheet();
   sheet.replaceChildren(content);
+  ensureAddNoteMobileSheetHandle(sheet);
   sheet.hidden = false;
+  sheet.style.removeProperty("transform");
   sheet.classList.remove("addNoteMobileSheet--open");
   addNoteSavedMapView = null;
   document.body.classList.add("add-note-form-open");
+  document.documentElement.classList.add("add-note-form-open");
   lockMapLayoutForAddNote();
   startAddNoteViewportWatch();
 
@@ -2430,6 +2524,8 @@ function closeAddNoteMobileSheetAnimated(done) {
     done?.();
     return;
   }
+  sheet.style.removeProperty("transform");
+  sheet.style.removeProperty("transition");
   sheet.classList.remove("addNoteMobileSheet--open");
   const finish = () => {
     sheet.classList.remove("addNoteMobileSheet--visible");
@@ -2491,6 +2587,7 @@ function openAddNotePopup(lngLat) {
 function closeAddNotePopup(options = {}) {
   pendingImageUrl = null;
   document.body.classList.remove("add-note-form-open");
+  document.documentElement.classList.remove("add-note-form-open");
   stopAddNoteViewportWatch();
   if (addNotePopup) {
     addNotePopup.remove();
@@ -2699,9 +2796,9 @@ function whenMapIdle(callback) {
   callback();
 }
 
-/** Desktop only — mobile add-note uses the bottom sheet + reflyMapForOpenAddNoteSheet. */
+/** Pan map so open marker popups have equal gaps in the map canvas (desktop + mobile). */
 function scheduleEqualizePopupGaps(popup) {
-  if (!popup || isMobileAddNoteViewport()) return;
+  if (!popup) return;
   whenMapIdle(() => {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => equalizePopupGapsInMapCanvas(popup));
@@ -2709,9 +2806,9 @@ function scheduleEqualizePopupGaps(popup) {
   });
 }
 
-/** Desktop open — same single pan as resize (no easeTo before equalize). */
-function finishDesktopMarkerPopupOpen(popup) {
-  if (!popup || isMobileAddNoteViewport()) return;
+/** After marker popup open — same single pan as resize (no easeTo / setOffset). */
+function finishMarkerPopupOpenPlacement(popup) {
+  if (!popup) return;
   scheduleEqualizePopupGaps(popup);
   window.setTimeout(() => scheduleEqualizePopupGaps(popup), 100);
 }
@@ -2723,7 +2820,7 @@ function finishDesktopAddNotePopupOpen(popup, content) {
     ta.focus();
     ta.setSelectionRange(0, 0);
   }
-  finishDesktopMarkerPopupOpen(popup);
+  finishMarkerPopupOpenPlacement(popup);
 }
 
 function finishAddNotePopupOpenPlacement(content) {
@@ -2946,13 +3043,7 @@ function flyMapToMarker(lngLat, zoom) {
 function bindPopupRecenterOnImageLoad(popup, root) {
   const img = root?.querySelector?.(".markerPopupImage");
   if (!img) return;
-  const recenter = () => {
-    if (isMobileAddNoteViewport()) {
-      scheduleCenterPopupInMapView(popup);
-    } else {
-      scheduleEqualizePopupGaps(popup);
-    }
-  };
+  const recenter = () => scheduleEqualizePopupGaps(popup);
   if (img.complete) return;
   img.addEventListener("load", recenter, { once: true });
   img.addEventListener("error", recenter, { once: true });
@@ -2987,9 +3078,6 @@ function openOrToggleMarkerPopup(noteId, options = {}) {
   }
   if (openMarkerPopup) openMarkerPopup.remove();
   const lngLat = marker.getLngLat();
-  if (isMobileAddNoteViewport()) {
-    flyMapToMarker(lngLat, options.zoom);
-  }
   const content = createMarkerPopupContent(note);
   const popup = new maplibregl.Popup({
     anchor: "bottom",
@@ -3008,11 +3096,7 @@ function openOrToggleMarkerPopup(noteId, options = {}) {
   popup.on("open", () => {
     bindPopupRecenterOnImageLoad(popup, content);
     syncActiveMarkerEmphasis();
-    if (isMobileAddNoteViewport()) {
-      whenMapIdle(() => scheduleCenterPopupInMapView(popup));
-      return;
-    }
-    whenMapIdle(() => finishDesktopMarkerPopupOpen(popup));
+    whenMapIdle(() => finishMarkerPopupOpenPlacement(popup));
   });
   popup.addTo(map);
   openMarkerPopup = popup;
@@ -3922,11 +4006,25 @@ function toggleArchive() {
   archiveBtn.setAttribute("aria-label", currentLang === "de" ? "Archiv schließen" : "Close archive");
 }
 
+function applyAppPlatformClasses() {
+  if (/Android/i.test(navigator.userAgent || "")) {
+    document.documentElement.classList.add("platform-android");
+  }
+}
+
+function applyAppVersionBadge() {
+  const badge = $("appVersionBadge");
+  if (badge) badge.textContent = `v${APP_VERSION} · BETA`;
+}
+
 function initApp() {
   window.__RECHTS_APP_STARTED = true;
   if (window.__RECHTS_BOOT_TIMER) {
     clearTimeout(window.__RECHTS_BOOT_TIMER);
   }
+
+  applyAppPlatformClasses();
+  applyAppVersionBadge();
 
   hamburgerBtn = /** @type {HTMLButtonElement|null} */ ($("hamburgerBtn"));
   archiveBtn = /** @type {HTMLButtonElement|null} */ ($("archiveBtn"));
