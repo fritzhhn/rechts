@@ -4,7 +4,7 @@ const STORAGE_KEY = "rechts-notes:v1";
 const LANG_STORAGE_KEY = "rechts-lang";
 
 /** Bottom-left badge; bump when index.html cache-bust (?v=) changes. */
-const APP_VERSION = "42";
+const APP_VERSION = "43";
 
 const MARKER_PIN_COLOR = "#9bd545";
 
@@ -70,6 +70,8 @@ const SEED_PLACE_NAMES = new Set(SEED_NOTES.map((s) => s.note));
 
 const EXTRA_SEEDS_STORAGE_KEY = "rechts-extra-seeds:v1";
 const RANDOM_SEED_STORAGE_KEY = "rechts-random-seeds-25:v1";
+/** One-time data normalizations (avoid saveNotes on every page load). */
+const NOTES_DATA_MIGRATIONS_KEY = "rechts-notes-data-migrations:v1";
 
 /** 25 extra demo pins around Leipzig (one-time migration). */
 const RANDOM_SEED_NOTES = [
@@ -918,6 +920,44 @@ async function loadSvgFiles() {
   }
 }
 
+function getCachedMarkerPinSvgs() {
+  const pinSvg =
+    cachedPin4Svg ||
+    cachedPin1Svg ||
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10.23 20.24" style="width: 100%; height: 100%; display: block;"><polygon points="9.07 5.66 10.24 1.43 2.04 0 1.19 2.51 6.47 3.52 6.2 4.36 0 6.2 0 9.59 4.55 11.47 4.62 20.24 9.09 10.34 9.13 7.62 6.56 7.62 9.07 5.66"/></svg>`;
+  const pinHoverSvg = cachedPin4Svg || cachedPin2Svg || pinSvg;
+  return { pinSvg, pinHoverSvg };
+}
+
+function upgradeMarkerElementPinGraphics(markerEl) {
+  if (!markerEl?.querySelector) return;
+  const { pinSvg, pinHoverSvg } = getCachedMarkerPinSvgs();
+  const defaultLayer = markerEl.querySelector('[data-marker-layer="default"]');
+  const hoverLayer = markerEl.querySelector('[data-marker-layer="hover"]');
+  if (defaultLayer) defaultLayer.innerHTML = pinSvg;
+  if (hoverLayer) hoverLayer.innerHTML = pinHoverSvg;
+  const markerWidth = 32;
+  const markerHeight = cachedPin4Svg
+    ? Math.round((markerWidth * PIN4_VIEWBOX.h) / PIN4_VIEWBOX.w)
+    : Math.round((markerWidth * 20.23) / 10.24);
+  markerEl.style.width = `${markerWidth}px`;
+  markerEl.style.height = `${markerHeight}px`;
+}
+
+function onSvgAssetsReady() {
+  applyAppCursor();
+  for (const marker of markersById.values()) {
+    upgradeMarkerElementPinGraphics(marker.getElement());
+  }
+  if (previewMarker) {
+    const previewEl = previewMarker.getElement();
+    const inner = previewEl?.querySelector?.("div");
+    const { pinSvg } = getCachedMarkerPinSvgs();
+    if (inner && pinSvg) inner.innerHTML = pinSvg;
+  }
+  if (updateMarkerPinColorsFn) updateMarkerPinColorsFn();
+}
+
 /** @param {HTMLElement} markerEl */
 function setMarkerHoverLayers(markerEl, hovered) {
   const pin1Layer = markerEl.querySelector('[data-marker-layer="default"]');
@@ -950,12 +990,8 @@ function syncActiveMarkerEmphasis() {
 }
 
 function createCustomMarkerElement() {
-  const pinSvg =
-    cachedPin4Svg ||
-    cachedPin1Svg ||
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10.23 20.24" style="width: 100%; height: 100%; display: block;"><polygon points="9.07 5.66 10.24 1.43 2.04 0 1.19 2.51 6.47 3.52 6.2 4.36 0 6.2 0 9.59 4.55 11.47 4.62 20.24 9.09 10.34 9.13 7.62 6.56 7.62 9.07 5.66"/></svg>`;
-  const pinHoverSvg = cachedPin4Svg || cachedPin2Svg || pinSvg;
-  
+  const { pinSvg, pinHoverSvg } = getCachedMarkerPinSvgs();
+
   // Outer container - MapLibre controls this for positioning
   // DO NOT apply transforms to this element!
   const el = document.createElement("div");
@@ -3129,16 +3165,36 @@ function setMapThemedVisible(visible) {
 
 /** Load / seed notes from localStorage once (archive works even if map is slow). */
 let notesHydrated = false;
+function runNotesDataMigrationsOnce() {
+  try {
+    if (localStorage.getItem(NOTES_DATA_MIGRATIONS_KEY)) return;
+  } catch {
+    return;
+  }
+  ensureDemoImagesOnNotes();
+  ensureExtraSeedNotes();
+  ensureRandomSeedNotes();
+  ensureNoteCategories();
+  ensureNotePlaceAndText();
+  try {
+    localStorage.setItem(NOTES_DATA_MIGRATIONS_KEY, "1");
+  } catch (_) {}
+}
+
 function hydrateNotesFromStorage() {
   if (notesHydrated) return;
   notes = loadNotes();
   seedDemoNotesIfEmpty();
-  ensureExtraSeedNotes();
-  ensureRandomSeedNotes();
-  ensureDemoImagesOnNotes();
-  ensureNoteCategories();
-  ensureNotePlaceAndText();
+  runNotesDataMigrationsOnce();
   notesHydrated = true;
+}
+
+async function preloadLeipzigBoundaryData() {
+  try {
+    await ensureLeipzigBoundaryData();
+  } catch (err) {
+    console.warn("Leipzig boundary data not preloaded:", err);
+  }
 }
 
 function initMap() {
@@ -3206,15 +3262,28 @@ function initMap() {
 
   let markersOnMap = false;
   let mapShown = false;
+  let leipzigMaskApplied = false;
 
-  function showMapWhenStyled() {
+  function scheduleLeipzigOutsideMask() {
+    if (leipzigMaskApplied || !map) return;
+    void applyLeipzigOutsideMask().then(() => {
+      leipzigMaskApplied = true;
+    });
+  }
+
+  function revealMapCanvas() {
     if (!map || mapShown) return;
     applyMapTheme();
-    void applyLeipzigOutsideMask();
     lockMapPitch();
     setMapThemedVisible(true);
     mapShown = true;
     setStatus("");
+    requestAnimationFrame(() => {
+      applyMapTheme();
+      setTimeout(applyMapTheme, 200);
+      scheduleLeipzigOutsideMask();
+      restoreMarkersOnMap();
+    });
   }
 
   function restoreMarkersOnMap() {
@@ -3225,16 +3294,14 @@ function initMap() {
     updateMarkerPinColors();
   }
 
-  map.on("style.load", showMapWhenStyled);
+  map.on("style.load", revealMapCanvas);
   map.on("styledata", () => {
-    if (map.isStyleLoaded && map.isStyleLoaded()) showMapWhenStyled();
+    if (map.isStyleLoaded && map.isStyleLoaded()) revealMapCanvas();
   });
   map.on("load", () => {
     lockMapPitch();
-    showMapWhenStyled();
+    revealMapCanvas();
     applyAppCursor();
-    applyMapThemeWithRetries();
-    restoreMarkersOnMap();
     map.resize();
     syncMinZoomToFitLeipzig();
   });
@@ -3242,11 +3309,11 @@ function initMap() {
 
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      if (map.isStyleLoaded && map.isStyleLoaded()) showMapWhenStyled();
+      if (map.isStyleLoaded && map.isStyleLoaded()) revealMapCanvas();
     });
   });
   setTimeout(() => {
-    showMapWhenStyled();
+    revealMapCanvas();
     restoreMarkersOnMap();
   }, 2500);
 
@@ -3324,14 +3391,6 @@ function initMap() {
     });
   }
   updateMarkerPinColorsFn = updateMarkerPinColors;
-
-  /** Apply theme now and again after delays so custom colors stick when layers load late (initial load). */
-  function applyMapThemeWithRetries() {
-    applyMapTheme();
-    [100, 300, 600].forEach((ms) => {
-      setTimeout(applyMapTheme, ms);
-    });
-  }
 
   // Custom map colors: background, buildings, water, parks/greens, landuse, streets
   function applyMapTheme() {
@@ -4104,20 +4163,14 @@ function initApp() {
     }
   });
 
-  // Preload SVG files, then initialize map
-  const bootMap = async () => {
-    hydrateNotesFromStorage();
-    try {
-      await ensureLeipzigBoundaryData();
-    } catch (err) {
-      console.warn("Leipzig boundary data not preloaded:", err);
-    }
-    initMap();
-  };
-  loadSvgFiles().then(bootMap).catch(() => {
-    console.warn("SVG files not loaded, using embedded fallbacks");
-    bootMap();
-  });
+  hydrateNotesFromStorage();
+  initMap();
+  void preloadLeipzigBoundaryData();
+  void loadSvgFiles()
+    .then(onSvgAssetsReady)
+    .catch(() => {
+      console.warn("SVG files not loaded, using embedded fallbacks");
+    });
 }
 
 if (document.readyState === "loading") {

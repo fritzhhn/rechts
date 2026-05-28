@@ -23,11 +23,26 @@
     <meta name="description" content="Anonym Erfahrungen mit sexueller Belästigung teilen und auf einer Karte sichtbar machen. Ein sicherer Raum für Frauen*." />
     <link rel="icon" type="image/svg+xml" href="icons/favicon.svg?v=6" />
 
+    <link rel="preconnect" href="https://unpkg.com" crossorigin />
+    <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin />
+    <link rel="dns-prefetch" href="https://unpkg.com" />
+    <link rel="dns-prefetch" href="https://tiles.openfreemap.org" />
+    <link
+      rel="preload"
+      href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"
+      as="style"
+    />
+    <link
+      rel="preload"
+      href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"
+      as="script"
+    />
+    <link rel="preload" href="./app.js?v=43" as="script" />
     <link
       rel="stylesheet"
       href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"
     />
-    <link rel="stylesheet" href="./style.css?v=42" />
+    <link rel="stylesheet" href="./style.css?v=43" />
   </head>
   <body>
     <div id="appStatus" class="appStatus appStatus--mapUi" role="status" aria-live="polite">
@@ -353,6 +368,6 @@
     </div>
 
     <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js" defer></script>
-    <script src="./app.js?v=42" defer></script>
+    <script src="./app.js?v=43" defer></script>
   </body>
 </html>
