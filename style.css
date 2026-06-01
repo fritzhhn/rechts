@@ -2027,10 +2027,11 @@ body.imageLightboxOpen {
   }
 }
 
-/* Desktop archive filters: match popup category/tag pills */
+/* Desktop archive + menu filters: match popup category/tag pills */
 @media (min-width: 601px) {
   .archiveFilterBtn,
-  .archiveTagBtn {
+  .archiveTagBtn,
+  .menuFilterBtn {
     font-size: var(--popup-pill-font-size);
     line-height: var(--popup-pill-line-height);
   }
