@@ -4,7 +4,7 @@ const STORAGE_KEY = "rechts-notes:v1";
 const LANG_STORAGE_KEY = "rechts-lang";
 
 /** Bottom-left badge; bump when index.html cache-bust (?v=) changes. */
-const APP_VERSION = "43";
+const APP_VERSION = "44";
 
 const MARKER_PIN_COLOR = "#9bd545";
 
