@@ -1,12 +1,13 @@
 /* global maplibregl */
 
 const STORAGE_KEY = "rechts-notes:v1";
-const LANG_STORAGE_KEY = "rechts-lang";
 
 /** Bottom-left badge; bump when index.html cache-bust (?v=) changes. */
-const APP_VERSION = "45";
+const APP_VERSION = "46";
 
 const MARKER_PIN_COLOR = "#9bd545";
+/** Map pin width in px (original 32px, reduced 20%). */
+const MARKER_PIN_WIDTH = 26;
 
 /**
  * Documentary photos (Wikimedia Commons) for demo pins — far-right stickers/posters, critical context.
@@ -21,14 +22,25 @@ const ARCHIVE_IMAGE_URLS = [
 
 /** @type {{ id: string, de: string, en: string }[]} */
 const NOTE_CATEGORIES = [
-  { id: "sticker", de: "Sticker & Aufkleber", en: "Stickers & decals" },
-  { id: "poster", de: "Plakate & Banner", en: "Posters & banners" },
-  { id: "graffiti", de: "Graffiti & Tags", en: "Graffiti & tags" },
-  { id: "stencil", de: "Stencils", en: "Stencils" },
-  { id: "advertising", de: "Werbung", en: "Advertising" },
+  { id: "right-actions", de: "Rechte Handlungen", en: "Right-wing actions" },
+  { id: "verbal", de: "Verbale Äußerungen, Parolen", en: "Verbal statements, slogans" },
+  { id: "symbols", de: "Symbole", en: "Symbols" },
+  { id: "writing", de: "Schrift (Graffiti, Sticker,…)", en: "Writing (graffiti, stickers, …)" },
+  { id: "brands", de: "Marken, Merch", en: "Brands, merch" },
+  { id: "accessories", de: "Schmuck, Accessoires", en: "Jewelry, accessories" },
+  { id: "other", de: "Sonstiges", en: "Other" },
 ];
 
 const DEFAULT_NOTE_CATEGORY = NOTE_CATEGORIES[0].id;
+
+/** Map retired category ids from earlier releases. */
+const LEGACY_NOTE_CATEGORY_IDS = {
+  sticker: "writing",
+  poster: "writing",
+  graffiti: "writing",
+  stencil: "writing",
+  advertising: "brands",
+};
 
 /** @type {{ id: string, de: string, en: string }[]} */
 const NOTE_TAGS = [
@@ -801,7 +813,8 @@ function ensureNotePlaceAndText() {
 
 function normalizeNoteCategory(category) {
   const id = typeof category === "string" ? category : "";
-  return NOTE_CATEGORIES.some((c) => c.id === id) ? id : DEFAULT_NOTE_CATEGORY;
+  const mapped = LEGACY_NOTE_CATEGORY_IDS[id] || id;
+  return NOTE_CATEGORIES.some((c) => c.id === mapped) ? mapped : DEFAULT_NOTE_CATEGORY;
 }
 
 function getCategoryLabel(categoryId, lang = currentLang) {
@@ -936,7 +949,7 @@ function upgradeMarkerElementPinGraphics(markerEl) {
   const hoverLayer = markerEl.querySelector('[data-marker-layer="hover"]');
   if (defaultLayer) defaultLayer.innerHTML = pinSvg;
   if (hoverLayer) hoverLayer.innerHTML = pinHoverSvg;
-  const markerWidth = 32;
+  const markerWidth = MARKER_PIN_WIDTH;
   const markerHeight = cachedPin4Svg
     ? Math.round((markerWidth * PIN4_VIEWBOX.h) / PIN4_VIEWBOX.w)
     : Math.round((markerWidth * 20.23) / 10.24);
@@ -999,7 +1012,7 @@ function createCustomMarkerElement() {
   el.style.userSelect = "none";
   el.style.pointerEvents = "auto";
   
-  const markerWidth = 32;
+  const markerWidth = MARKER_PIN_WIDTH;
   const markerHeight = cachedPin4Svg
     ? Math.round((markerWidth * PIN4_VIEWBOX.h) / PIN4_VIEWBOX.w)
     : Math.round((markerWidth * 20.23) / 10.24);
@@ -1065,7 +1078,7 @@ function createPreviewMarkerElement() {
   el.style.display = "block";
   el.style.userSelect = "none";
   el.style.pointerEvents = "auto";
-  const markerWidth = 32;
+  const markerWidth = MARKER_PIN_WIDTH;
   const markerHeight = Math.round(
     (markerWidth * PIN4_VIEWBOX.h) / PIN4_VIEWBOX.w,
   );
@@ -2257,12 +2270,18 @@ function updateAddNotePopupLang() {
   }
 }
 
+function detectDeviceLanguage() {
+  const browser = (
+    navigator.languages && navigator.languages[0]
+      ? navigator.languages[0]
+      : navigator.language || navigator.userLanguage || ""
+  ).toLowerCase();
+  return browser.startsWith("en") ? "en" : "de";
+}
+
 function setLanguage(lang) {
   if (lang !== "de" && lang !== "en") return;
   currentLang = lang;
-  try {
-    localStorage.setItem(LANG_STORAGE_KEY, lang);
-  } catch (_) {}
   document.documentElement.lang = lang;
   const menuDe = $("menuContentDe");
   const menuEn = $("menuContentEn");
@@ -4091,17 +4110,7 @@ function initApp() {
     });
   }
 
-  try {
-    const saved = localStorage.getItem(LANG_STORAGE_KEY);
-    if (saved === "en" || saved === "de") {
-      setLanguage(saved);
-    } else {
-      const browser = (navigator.languages && navigator.languages[0] ? navigator.languages[0] : navigator.language || navigator.userLanguage || "").toLowerCase();
-      setLanguage(browser.startsWith("en") ? "en" : "de");
-    }
-  } catch (_) {
-    setLanguage("de");
-  }
+  setLanguage(detectDeviceLanguage());
 
   window.addEventListener("error", (ev) => {
     if (ev && typeof ev.message === "string" && ev.message) {

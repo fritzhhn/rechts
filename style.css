@@ -330,7 +330,7 @@ body.add-note-lock-layout .map-wrapper {
 .maplibregl-popup-anchor-top,
 .maplibregl-popup-anchor-top-left,
 .maplibregl-popup-anchor-top-right {
-  margin-top: -60px;
+  margin-top: -48px;
 }
 /* No popup arrow (tip overlapped content after layout changes) */
 .maplibregl-popup-tip {
