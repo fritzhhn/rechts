@@ -3,9 +3,22 @@
 const STORAGE_KEY = "rechts-notes:v1";
 
 /** Bottom-left badge; bump when index.html cache-bust (?v=) changes. */
-const APP_VERSION = "46";
+const APP_VERSION = "47";
 
-const MARKER_PIN_COLOR = "#9bd545";
+/** Read a brand color from the CSS theme so colors have a single source of truth. */
+function readBrandColor(varName, fallback) {
+  try {
+    const value = getComputedStyle(document.documentElement)
+      .getPropertyValue(varName)
+      .trim();
+    return value || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+/** Marker hover fill — mirrors CSS --brand-pin. */
+const MARKER_PIN_COLOR = readBrandColor("--brand-pin", "#9bd545");
 /** Map pin width in px (original 32px, reduced 20%). */
 const MARKER_PIN_WIDTH = 26;
 
@@ -562,7 +575,7 @@ function ensureDemoImagesOnNotes() {
 function ensureExtraSeedNotes() {
   try {
     if (localStorage.getItem(EXTRA_SEEDS_STORAGE_KEY)) return;
-    } catch {
+  } catch {
     return;
   }
   const existing = new Set(notes.map((n) => `${n.note}|${n.lng}|${n.lat}`));
@@ -883,11 +896,11 @@ async function loadSvgFiles() {
   try {
     const [pin1Response, pin2Response, pin4Response, pointerResponse] =
       await Promise.all([
-      fetch("icons/pin1.svg"),
-      fetch("icons/pin2.svg"),
-      fetch("icons/pin4.svg"),
-      fetch("icons/pointer.svg"),
-    ]);
+        fetch("icons/pin1.svg"),
+        fetch("icons/pin2.svg"),
+        fetch("icons/pin4.svg"),
+        fetch("icons/pointer.svg"),
+      ]);
     
     if (pin1Response.ok) {
       cachedPin1Svg = setMarkerFill(
@@ -2697,7 +2710,7 @@ async function submitNote(noteText, buttonEl, category = DEFAULT_NOTE_CATEGORY, 
   const applyItem = (item) => {
     notes.unshift(item);
     try {
-    saveNotes();
+      saveNotes();
     } catch {
       if (buttonEl) buttonEl.disabled = false;
       setStatus(currentLang === "de" ? "Speichern fehlgeschlagen (Speicher voll?)." : "Could not save (storage full?).");
@@ -2722,8 +2735,8 @@ async function submitNote(noteText, buttonEl, category = DEFAULT_NOTE_CATEGORY, 
     closeAddNotePopup({
       skipRestore: true,
       onClosed: () => {
-      if (!map) return;
-      openOrToggleMarkerPopup(item.id);
+        if (!map) return;
+        openOrToggleMarkerPopup(item.id);
       },
     });
   };
@@ -2731,17 +2744,17 @@ async function submitNote(noteText, buttonEl, category = DEFAULT_NOTE_CATEGORY, 
   const noteCategory = normalizeNoteCategory(category);
   const noteTags = normalizeNoteTags(tags);
   applyItem({
-        id: makeId(),
-        note: text,
-        placeName,
-        lng,
-        lat,
-        createdAt: Date.now(),
+    id: makeId(),
+    note: text,
+    placeName,
+    lng,
+    lat,
+    createdAt: Date.now(),
     category: noteCategory,
     tags: noteTags,
     ...(imageUrl ? { imageUrl } : {}),
   });
-    if (buttonEl) buttonEl.disabled = false;
+  if (buttonEl) buttonEl.disabled = false;
 }
 
 const GAP_ABOVE_MARKER = 80; // gap between popup tip and top of marker (popup above marker)

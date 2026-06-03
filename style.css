@@ -27,6 +27,13 @@
   /* pointer.svg — top-left at cursor tip; JS replaces with sized data URL when loaded */
   --cursor-pointer: url("icons/pointer.svg") 0 0, auto;
   --font-sans: "Roboto", system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+
+  /* Brand palette — single source of truth (app.js reads --brand-pin) */
+  --brand-bg: rgb(198, 228, 153); /* lime green: page + UI surfaces */
+  --brand-pink: rgb(250, 52, 147); /* magenta accent (logo strike) */
+  --brand-pink-soft: rgb(255, 187, 221); /* soft pink: Instagram bubble */
+  --brand-pin: rgb(155, 213, 69); /* marker hover fill */
+  --ink: #000;
 }
 
 * {
@@ -123,8 +130,8 @@ body {
   margin: 0;
   overflow-x: hidden;
   font-family: var(--font-sans);
-  color: #000;
-  background: rgb(198, 228, 153);
+  color: var(--ink);
+  background: var(--brand-bg);
 }
 
 html:has(body.add-note-form-open),
@@ -289,7 +296,7 @@ body.add-note-lock-layout .map-wrapper {
   height: 100%;
   height: 100dvh;
   height: -webkit-fill-available;
-  background: rgb(198, 228, 153);
+  background: var(--brand-bg);
   touch-action: none; /* so only the map zooms, not the page */
 }
 
@@ -322,8 +329,6 @@ body.add-note-lock-layout .map-wrapper {
 .maplibregl-dragging .maplibregl-canvas {
   cursor: var(--cursor-pointer) !important;
 }
-
-/* Vector style handles colors directly, no filter needed */
 
 /* MapLibre popup styling */
 /* When popup opens below marker (anchor-top), pull it up so it sits right under the pin */
@@ -408,12 +413,11 @@ body.add-note-lock-layout .map-wrapper {
   --map-ui-border-width: 1px;
   --map-ui-radius: 0;
   --map-ui-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.08);
-  --map-ui-btn-bg: rgb(198, 228, 153);
-  --map-ui-btn-border: #000;
-  --marker-pin-color: rgb(155, 213, 69);
-  --brand-pink: rgb(250, 52, 147);
-  --map-ui-btn-hover-bg: #000;
-  --map-ui-btn-hover-fg: rgb(198, 228, 153);
+  --map-ui-btn-bg: var(--brand-bg);
+  --map-ui-btn-border: var(--ink);
+  --marker-pin-color: var(--brand-pin);
+  --map-ui-btn-hover-bg: var(--ink);
+  --map-ui-btn-hover-fg: var(--brand-bg);
   --z-map-panel: 1002;
   --z-map-header: 1003;
   --z-map-chrome: 1005;
@@ -662,7 +666,7 @@ html.platform-android .bottomRightControls {
   width: 75px;
   height: 75px;
   border-radius: 50%;
-  background: rgb(255, 187, 221);
+  background: var(--brand-pink-soft);
   flex-shrink: 0;
   overflow: hidden;
 }
@@ -704,20 +708,16 @@ html.platform-android .bottomRightControls {
   z-index: var(--z-map-panel);
   display: none;
   grid-template-rows: minmax(0, 1fr);
+  grid-template-columns:
+    minmax(var(--panel-bar-size), var(--panel-bar-size))
+    minmax(0, 1fr)
+    minmax(var(--panel-bar-size), var(--panel-bar-size));
   background: var(--map-ui-btn-bg);
   border: none;
   box-sizing: border-box;
   box-shadow: none;
   overflow: hidden;
   border-radius: 0;
-}
-
-.menuOverlay,
-.archiveOverlay {
-  grid-template-columns:
-    minmax(var(--panel-bar-size), var(--panel-bar-size))
-    minmax(0, 1fr)
-    minmax(var(--panel-bar-size), var(--panel-bar-size));
 }
 
 .menuOverlay.open,
@@ -799,6 +799,7 @@ html.platform-android .bottomRightControls {
 .menuFilterBar {
   max-height: 72px;
   overflow-y: auto;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .archiveFilterBar,
@@ -815,32 +816,13 @@ html.platform-android .bottomRightControls {
   border-bottom: none;
 }
 
-.menuFilterBar {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-}
-
 .archiveFilterBar::-webkit-scrollbar,
 .archiveTagBar::-webkit-scrollbar,
 .menuFilterBar::-webkit-scrollbar {
   display: none;
 }
 
-.menuFilterBtn {
-  border: none;
-  background: var(--map-ui-btn-bg);
-  color: #000;
-  font: inherit;
-  font-size: 9px;
-  font-weight: 700;
-  line-height: 1.2;
-  padding: var(--popup-pill-padding);
-  cursor: var(--cursor-pointer);
-  border-radius: 0;
-  box-shadow: none;
-  text-align: center;
-  max-width: 100%;
-}
-
+.menuFilterBtn,
 .archiveFilterBtn,
 .archiveTagBtn {
   border: none;
@@ -910,11 +892,6 @@ html.platform-android .bottomRightControls {
 .archiveDetailBack:hover {
   background: var(--map-ui-btn-hover-bg);
   color: var(--map-ui-btn-hover-fg);
-}
-
-.archiveOverlay--compact .archivePane--detail .archiveDetail {
-  flex: 1;
-  min-height: 0;
 }
 
 .menuOverlayScroll {
@@ -1229,7 +1206,6 @@ html.platform-android .bottomRightControls {
   max-width: 100%;
 }
 
-.brandCenter strong,
 .brandCenterBtn strong {
   display: block;
   height: 100%;
@@ -1238,7 +1214,7 @@ html.platform-android .bottomRightControls {
   font-size: clamp(11px, 2.8vw + 0.45rem, 32px);
   line-height: var(--map-ui-btn-size);
   font-weight: bold;
-  color: rgb(250, 52, 147);
+  color: var(--brand-pink);
   white-space: nowrap;
   transform: translateY(2px);
   max-width: 100%;
@@ -1824,7 +1800,7 @@ body.imageLightboxOpen {
 }
 
 .addNoteConsentHint a {
-  color: #0b1020;
+  color: var(--ink);
   text-decoration: underline;
 }
 
@@ -2069,11 +2045,6 @@ body.imageLightboxOpen {
   .instagramLogo {
     width: var(--instagram-logo-size);
     height: var(--instagram-logo-size);
-  }
-
-  .menuFilterBar {
-    padding: 6px clamp(12px, 4vw, 48px);
-    max-height: 72px;
   }
 
   .archiveFilterBar,

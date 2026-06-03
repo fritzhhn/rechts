@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="de">
   <head>
     <meta charset="UTF-8" />
     <!-- Map apps: on iOS, maximum-scale=1 stops keyboard auto-zoom (pinch-zoom still works on iOS 10+). -->
@@ -20,7 +20,7 @@
       })();
     </script>
     <title>FASCHON̶O̶T̶FOUND</title>
-    <meta name="description" content="Anonym Erfahrungen mit sexueller Belästigung teilen und auf einer Karte sichtbar machen. Ein sicherer Raum für Frauen*." />
+    <meta name="description" content="Rechte Vorfälle, Symbole und diskriminierende Übergriffe in Leipzig anonym melden und auf einer Karte sichtbar machen." />
     <link rel="icon" type="image/svg+xml" href="icons/favicon.svg?v=6" />
 
     <link rel="preconnect" href="https://unpkg.com" crossorigin />
@@ -37,12 +37,12 @@
       href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"
       as="script"
     />
-    <link rel="preload" href="./app.js?v=46" as="script" />
+    <link rel="preload" href="./app.js?v=47" as="script" />
     <link
       rel="stylesheet"
       href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"
     />
-    <link rel="stylesheet" href="./style.css?v=46" />
+    <link rel="stylesheet" href="./style.css?v=47" />
   </head>
   <body>
     <div id="appStatus" class="appStatus appStatus--mapUi" role="status" aria-live="polite">
@@ -190,7 +190,7 @@
               <li>werden keine Namen oder Kontodaten verlangt</li>
               <li>werden Beiträge ohne Klarnamen veröffentlicht</li>
             </ul>
-            <p>Die Verantwortung für die Anonymität der Inhalte liegt auch bei den Nutzerinnen selbst.</p>
+            <p>Die Verantwortung für die Anonymität der Inhalte liegt auch bei den Nutzer*innen selbst.</p>
             <h3>3. Standortdaten</h3>
             <p>Standortangaben werden nicht als exakte Adressen, sondern in abstrahierter Form (z. B. Straßenzüge oder Bereiche) gespeichert und dargestellt, um Rückschlüsse auf einzelne Personen zu vermeiden.</p>
             <h3>4. Technische Daten</h3>
@@ -219,11 +219,11 @@
 
             <h2 id="terms-of-use">Terms of Use / Nutzungsbedingungen</h2>
             <h3>1. Zweck der Plattform</h3>
-            <p>Diese Website dient dem anonymen Teilen persönlicher Erfahrungen mit sexueller Belästigung sowie der anonymisierten Darstellung von Orten, an denen solche Vorfälle stattgefunden haben.</p>
+            <p>Diese Website dient dem anonymen Teilen von Beobachtungen und Erfahrungen zu rechten Vorfällen, diskriminierenden Ereignissen und extrem rechter Präsenz sowie der anonymisierten Darstellung von Orten, an denen solche Vorfälle stattgefunden haben.</p>
             <h3>2. Anonyme Nutzung</h3>
-            <p>Die Nutzung der Plattform ist anonym. Nutzerinnen werden ausdrücklich dazu aufgefordert, keine Namen, konkreten Identitätsmerkmale oder privaten Informationen (z. B. vollständige Adressen, Autokennzeichen, Arbeitgeber) anzugeben.</p>
+            <p>Die Nutzung der Plattform ist anonym. Nutzer*innen werden ausdrücklich dazu aufgefordert, keine Namen, konkreten Identitätsmerkmale oder privaten Informationen (z. B. vollständige Adressen, Autokennzeichen, Arbeitgeber) anzugeben.</p>
             <h3>3. Verantwortung für Inhalte</h3>
-            <p>Die Nutzerinnen sind für die von ihnen eingestellten Inhalte selbst verantwortlich. Nicht erlaubt sind insbesondere:</p>
+            <p>Die Nutzer*innen sind für die von ihnen eingestellten Inhalte selbst verantwortlich. Nicht erlaubt sind insbesondere:</p>
             <ul>
               <li>Falsche Beschuldigungen einzelner identifizierbarer Personen</li>
               <li>Hassrede, Beleidigungen oder Gewaltaufrufe</li>
@@ -238,48 +238,68 @@
 
           <div id="menuContentEn" class="menuContent" lang="en" style="display: none;">
             <h2 id="about-en">About</h2>
-            <p>This platform was created to give women* a safe space to share their experiences of sexual harassment anonymously. Too often these experiences remain invisible, are downplayed or kept silent – we want to change that.</p>
-            <p>By sharing experiences anonymously and collecting locations on a map, we make visible where sexual harassment happens in public space. Not to spread fear – but to raise awareness, strengthen solidarity and bring about change.</p>
+            <p>This platform was created to make right-wing incidents, activities and discriminatory attacks in Leipzig visible. Many of these situations are witnessed or experienced – and yet remain invisible, are downplayed or accepted as “normal”. That is exactly what we want to make visible.</p>
+            <p>The platform collects anonymous observations, experiences and sightings from public space. This builds a shared picture of where right-wing presence, intimidation, hate symbols, threats, racist incidents or inhumane behaviour occur in everyday life.</p>
+            <p>The aim is not to create fear, but to make visible what is often overlooked or normalised.</p>
             <h3>Why a map?</h3>
-            <p>Many affected people report avoiding certain places without it ever being officially acknowledged that there is a problem. The collected data can help:</p>
+            <p>Right-wing incidents often happen in everyday life: on streets, on trams, at stops, in squares, at events or in your immediate surroundings. Many people witness such situations without them being documented or publicly noticed.</p>
+            <p>The map is meant to help:</p>
             <ul>
-              <li>identify dangerous locations</li>
-              <li>make structural patterns visible</li>
-              <li>draw the attention of cities, municipalities and institutions to problems</li>
+              <li>make right-wing presence and incidents in Leipzig visible</li>
+              <li>document social developments and tendencies towards normalisation</li>
+              <li>recognise patterns and clusters</li>
+              <li>raise attention for affected places and situations</li>
+              <li>support civil-society initiatives, research and education</li>
             </ul>
-            <p>In the long term, the anonymised insights can be used to show policymakers where action is needed.</p>
-            <h3>Anonymous. Solidary. Empowering.</h3>
-            <p>All posts are anonymous. No one has to provide personal data. This platform belongs to the women* who raise their voices – and to everyone who listens and takes responsibility.</p>
-            <p>*Women here includes all people who identify as women or experience sexualised violence because of their gender.</p>
+            <p>If incidents stay invisible over the long term, the impression quickly arises that they are rare or socially accepted. This platform aims to counter that.</p>
+            <h3>Visibility in public space</h3>
+            <p>The reports on this platform come from anonymously submitted observations and experiences that reach us via Instagram, among other channels.</p>
+            <p>As a small civil-society group, we mark the reported locations with chalk in public space. The markings are meant to draw attention, spark conversations and make clear that right-wing incidents must not go unnoticed.</p>
+            <p>The chalk markings are deliberately temporary and not intended as property damage or intimidation. They serve solely to make social developments visible and as a sign against normalisation, looking away and collective silence.</p>
+            <p>In doing so, we do not publish any personal data or identifiable information about private individuals.</p>
+            <h3>Anonymous. In solidarity. Visible.</h3>
+            <p>All posts are anonymous. No one has to provide personal data.</p>
+            <p>It is not only about personally experienced situations. Observations, perceptions and sightings can also be shared – such as right-wing slogans, intimidation, organised presence or discriminatory incidents in public space.</p>
+            <p>The platform is aimed at everyone in Leipzig who wants to draw attention to developments that must not be silently normalised.</p>
             <h3>Not an official reporting office</h3>
-            <p>This platform is not an official point of contact; it does not replace reporting to the police, counselling services, or legal or therapeutic support.</p>
-            <p>It is a place to share what happened, to speak out and to make visible where sexual harassment occurs – not to make formal accusations or pursue perpetrators.</p>
-            <h3>Space for expression</h3>
-            <p>Many affected people experience that their feelings have no place. Anger, fear, shame or powerlessness may be expressed here.</p>
-            <p>Posts serve personal expression, “getting it off your chest” and sharing experiences – not providing evidence.</p>
-            <h3>Support &amp; helplines</h3>
-            <p>This platform is not an official point of contact and does not replace professional help. If sharing or reading experiences is distressing or you need support, please contact one of the following services. There you can get confidential, free support from trained staff:</p>
-            <p><strong>Helpline “Violence against women” (Germany)</strong><br>08000 116 016<br>24/7 · anonymous · free<br><a href="https://www.hilfetelefon.de" target="_blank" rel="noopener">https://www.hilfetelefon.de</a><br>Advice by chat and email too.</p>
-            <p><strong>Nummer gegen Kummer (for young people)</strong><br>116 111<br>Mon–Sat 2–8 pm<br><a href="https://www.nummergegenkummer.de" target="_blank" rel="noopener">https://www.nummergegenkummer.de</a></p>
-            <p>If you feel in acute danger, please contact the emergency number in your country.</p>
+            <p>This platform is not an official reporting office and does not replace a police report, a counselling service or legal support.</p>
+            <p>It serves to make social developments visible and to document them, as well as to share observations and experiences – not to provide formal evidence or pursue criminal prosecution.</p>
+            <h3>Space for experiences and observations</h3>
+            <p>Many people experience or witness right-wing incidents and feel that these are downplayed or ignored. This platform is meant to give space to record such situations and make them visible.</p>
+            <p>Posts serve documentation, exchange and social visibility.</p>
+            <h3>Support &amp; help services</h3>
+            <p>This platform does not replace professional support. If an incident is distressing you or you need help, please contact appropriate counselling services or support offers.</p>
+            <p><strong>Counselling services in Saxony</strong></p>
+            <ul>
+              <li><a href="https://www.raa-sachsen.de/support" target="_blank" rel="noopener">RAA Sachsen – Opferberatung Support</a></li>
+              <li>Leipziger Netzwerk gegen Diskriminierung</li>
+              <li><a href="https://verband-brg.de/" target="_blank" rel="noopener">Bundesverband der Beratungsstellen für Betroffene rechter Gewalt (VBRG)</a></li>
+            </ul>
+            <p>If you feel in acute danger, please call the emergency number 110.</p>
 
             <h2 id="code-of-conduct-en">Code of Conduct</h2>
-            <p>This platform is a space for experiences of sexual harassment in public space. Our aim is to create visibility, enable solidarity and make structures visible.</p>
-            <p>So that this space stays as safe as possible for everyone, we ask you to act with respect.</p>
+            <p>This platform is a space to document right-wing incidents, discriminatory events and far-right presence in Leipzig.</p>
+            <p>The aim is to make developments visible, strengthen solidarity and counter social normalisation.</p>
+            <p>So that this space stays as safe as possible for everyone, we ask you to act respectfully.</p>
             <h3>Respect &amp; responsibility</h3>
-            <p>Only share experiences that you have had yourself or that you explicitly agree to share.</p>
-            <p>Meet other posts with empathy. Every experience is real and deserves to be taken seriously.</p>
-            <h3>No discrimination or violence</h3>
-            <p>Posts that are racist, sexist, queerphobic, ableist or otherwise discriminatory will not be published.</p>
+            <p>Only share observations or experiences that you have made yourself or whose publication has been explicitly permitted.</p>
+            <p>Treat other posts respectfully and responsibly.</p>
+            <p>Sensitive content should be handled with care.</p>
+            <h3>No discrimination or agitation</h3>
+            <p>Posts that are themselves racist, antisemitic, queerphobic, sexist, ableist or otherwise inhumane will not be published.</p>
+            <p>Calls for violence, intimidation or targeted agitation are not allowed.</p>
             <h3>Protection of privacy</h3>
-            <p>Please do not give full names or identifiable data of private individuals.</p>
-            <p>Be careful not to share details that could endanger you or others.</p>
-            <h3>No victim-blaming or relativisation</h3>
-            <p>This platform is not a place to question or downplay experiences.</p>
+            <p>Please do not publish full names, private addresses or identifiable personal data of private individuals.</p>
+            <p>Be careful not to share information that could endanger you or others.</p>
+            <h3>No trivialisation</h3>
+            <p>This platform is not a place to downplay or relativise discriminatory or right-wing incidents, or to attack those affected.</p>
             <h3>Moderation</h3>
-            <p>Posts may be moderated or removed if they violate these guidelines. The aim is not to silence voices but to maintain a protected space.</p>
+            <p>Posts are reviewed for whether they violate our guidelines or endanger other people, and then published by us.</p>
+            <p>The aim of moderation is to maintain a space that is as safe and responsible as possible.</p>
             <h3>Not a substitute for help</h3>
-            <p>This platform can make support visible but does not replace professional counselling. If you need acute help, please contact counselling services or helplines. This space lives from experiences being shared. Thank you for helping to make the invisible visible.</p>
+            <p>This platform can create awareness and make developments visible, but does not replace professional counselling or support.</p>
+            <p>If you need acute help, please contact appropriate counselling services or emergency numbers.</p>
+            <p>This space thrives on people looking closely, documenting and not looking away. Thank you for helping to make visible developments that must not become normal.</p>
 
             <h2 id="imprint-en">Imprint</h2>
             <p>Information according to § 5 TMG</p>
@@ -328,7 +348,7 @@
 
             <h2 id="terms-of-use-en">Terms of Use</h2>
             <h3>1. Purpose of the platform</h3>
-            <p>This website serves the anonymous sharing of personal experiences of sexual harassment and the anonymised display of places where such incidents have occurred.</p>
+            <p>This website serves the anonymous sharing of observations and experiences of right-wing incidents, discriminatory events and far-right presence, as well as the anonymised display of places where such incidents have occurred.</p>
             <h3>2. Anonymous use</h3>
             <p>Use of the platform is anonymous. Users are expressly asked not to give names, identifying details or private information (e.g. full addresses, licence plates, employers).</p>
             <h3>3. Responsibility for content</h3>
@@ -388,6 +408,6 @@
     </div>
 
     <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js" defer></script>
-    <script src="./app.js?v=46" defer></script>
+    <script src="./app.js?v=47" defer></script>
   </body>
 </html>
